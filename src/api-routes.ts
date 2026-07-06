@@ -145,6 +145,143 @@ ${JSON.stringify(emailDetails)}`;
     }
   });
 
+  app.post("/api/emails/bulk-action", async (req, res) => {
+    try {
+      const { accessToken, messageIds, action } = req.body;
+      if (!accessToken || !messageIds || !Array.isArray(messageIds) || !action) {
+        return res.status(400).json({ error: "Missing required parameters" });
+      }
+
+      const gmail = getGmail(accessToken);
+
+      if (action === "trash") {
+        await gmail.users.messages.batchModify({
+          userId: "me",
+          requestBody: {
+            ids: messageIds,
+            addLabelIds: ["TRASH"],
+            removeLabelIds: ["INBOX"],
+          },
+        });
+      } else if (action === "mark-read") {
+        await gmail.users.messages.batchModify({
+          userId: "me",
+          requestBody: {
+            ids: messageIds,
+            removeLabelIds: ["UNREAD"],
+          },
+        });
+      } else if (action === "mark-unread") {
+        await gmail.users.messages.batchModify({
+          userId: "me",
+          requestBody: {
+            ids: messageIds,
+            addLabelIds: ["UNREAD"],
+          },
+        });
+      } else {
+        return res.status(400).json({ error: "Invalid action" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error bulk modifying emails:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/emails/unsubscribe", async (req, res) => {
+    try {
+      const { accessToken, links, messageIds } = req.body;
+      if (!accessToken || !links || !Array.isArray(links)) {
+        return res.status(400).json({ error: "Missing required parameters" });
+      }
+
+      const gmail = getGmail(accessToken);
+      let successCount = 0;
+
+      for (const header of links) {
+        if (!header) continue;
+        const matches = header.match(/<([^>]+)>/g);
+        if (!matches) continue;
+
+        let unsubscribed = false;
+
+        // Try http first
+        for (const match of matches) {
+          const link = match.slice(1, -1);
+          if (link.startsWith("http") && !unsubscribed) {
+            try {
+              await fetch(link, { method: "POST" }).catch(() => fetch(link));
+              unsubscribed = true;
+            } catch (e) {
+              console.error("HTTP unsubscribe failed", e);
+            }
+          }
+        }
+
+        if (!unsubscribed) {
+          for (const match of matches) {
+            const link = match.slice(1, -1);
+            if (link.startsWith("mailto:")) {
+              try {
+                const url = new URL(link);
+                const to = url.pathname;
+                const subject = url.searchParams.get("subject") || "Unsubscribe";
+                const body = url.searchParams.get("body") || "Please unsubscribe me.";
+
+                const messageParts = [
+                  `To: ${to}`,
+                  "Content-Type: text/plain; charset=utf-8",
+                  "MIME-Version: 1.0",
+                  `Subject: ${subject}`,
+                  "",
+                  body,
+                ];
+
+                const encodedMessage = Buffer.from(messageParts.join("\n"))
+                  .toString("base64")
+                  .replace(/\+/g, "-")
+                  .replace(/\//g, "_")
+                  .replace(/=+$/, "");
+
+                await gmail.users.messages.send({
+                  userId: "me",
+                  requestBody: { raw: encodedMessage },
+                });
+                unsubscribed = true;
+                break;
+              } catch (e) {
+                console.error("Mailto unsubscribe failed", e);
+              }
+            }
+          }
+        }
+
+        if (unsubscribed) successCount++;
+      }
+
+      // Optionally trash the messages after unsubscribing
+      if (messageIds && messageIds.length > 0) {
+        await gmail.users.messages
+          .batchModify({
+            userId: "me",
+            requestBody: {
+              ids: messageIds,
+              addLabelIds: ["TRASH"],
+              removeLabelIds: ["INBOX"],
+            },
+          })
+          .catch((e) => console.error("Failed to trash after unsubscribe", e));
+      }
+
+      res.json({ success: true, count: successCount });
+    } catch (error: any) {
+      console.error("Error unsubscribing:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/emails/trash", async (req, res) => {
     try {
       const { accessToken, messageId } = req.body;
@@ -180,7 +317,7 @@ ${JSON.stringify(emailDetails)}`;
       const bodyText = await getEmailBody(msgDetails);
       const prompt = `Summarize the following email in 1-2 short sentences:\n\n${bodyText}`;
       const genResponse = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash",
         contents: prompt,
       });
 
@@ -225,7 +362,7 @@ ${JSON.stringify(emailDetails)}`;
       }
 
       const genResponse = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.5-flash",
         contents: prompt,
       });
 
@@ -280,21 +417,21 @@ ${JSON.stringify(emailDetails)}`;
       const ai = getAi(key);
       const { prompt, mode, image, audio } = req.body;
 
-      let model = "gemini-2.5-flash";
+      let model = "gemini-3.5-flash";
       let tools: any[] = [];
       const generationConfig: any = {};
 
       if (mode === "thinking") {
         model = "gemini-2.5-pro";
-        generationConfig.thinking_config = { type: "ENABLED" };
+        generationConfig.thinkingConfig = { thinkingBudget: 2048 };
       } else if (mode === "fast") {
-        model = "gemini-2.0-flash-lite";
+        model = "gemini-3.1-flash-lite";
       } else if (mode === "search") {
         tools = [{ googleSearch: {} }];
       } else if (mode === "maps") {
         tools = [{ googleMaps: {} }];
       } else if (image || audio) {
-        model = "gemini-2.5-flash";
+        model = "gemini-3.5-flash";
       }
 
       let inputData: any = prompt;
@@ -328,59 +465,56 @@ ${JSON.stringify(emailDetails)}`;
 
     wss.on("connection", async (clientWs, req) => {
       try {
-        let wsApiKey = process.env.GEMINI_API_KEY;
+        const url = new URL(req.url!, `http://${req.headers.host || "localhost"}`);
+        const wsApiKey = url.searchParams.get("apiKey") || process.env.GEMINI_API_KEY;
 
-        clientWs.on("message", async (data) => {
+        if (!wsApiKey) {
+          clientWs.send(JSON.stringify({ error: "Gemini API key is required." }));
+          clientWs.close();
+          return;
+        }
+
+        const wsAi = new GoogleGenAI({ apiKey: wsApiKey });
+        const session = await wsAi.live.connect({
+          model: "gemini-2.0-flash-live-preview",
+          callbacks: {
+            onmessage: (message: LiveServerMessage) => {
+              const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+              if (audio) clientWs.send(JSON.stringify({ audio }));
+              if (message.serverContent?.interrupted) {
+                clientWs.send(JSON.stringify({ interrupted: true }));
+              }
+            },
+          },
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+              voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } },
+            },
+            systemInstruction: "You are a smart email assistant.",
+          },
+        });
+
+        clientWs.on("message", (data) => {
           try {
             const parsed = JSON.parse(data.toString());
-
-            if (parsed.apiKey) {
-              wsApiKey = parsed.apiKey;
-              return;
-            }
-
-            if (!wsApiKey) {
-              clientWs.send(JSON.stringify({ error: "Gemini API key is required." }));
-              return;
-            }
-
-            const wsAi = new GoogleGenAI({ apiKey: wsApiKey });
-            const session = await wsAi.live.connect({
-              model: "gemini-2.0-flash-live-preview",
-              callbacks: {
-                onmessage: (message: LiveServerMessage) => {
-                  const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-                  if (audio) clientWs.send(JSON.stringify({ audio }));
-                  if (message.serverContent?.interrupted) {
-                    clientWs.send(JSON.stringify({ interrupted: true }));
-                  }
-                },
-              },
-              config: {
-                responseModalities: [Modality.AUDIO],
-                speechConfig: {
-                  voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } },
-                },
-                systemInstruction: "You are a smart email assistant.",
-              },
-            });
-
             const audioData = parsed.audio;
             if (audioData) {
               session.sendRealtimeInput({
                 audio: { data: audioData, mimeType: "audio/pcm;rate=16000" },
               });
             }
-
-            clientWs.on("close", () => {
-              session.close();
-            });
           } catch (e) {
             console.error("WS msg parse err", e);
           }
         });
+
+        clientWs.on("close", () => {
+          session.close();
+        });
       } catch (error) {
         console.error("Live API connection failed:", error);
+        clientWs.close();
       }
     });
   }
