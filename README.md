@@ -48,6 +48,12 @@ npm run start
 - **Gemini API Key:** By default, it runs using the `GEMINI_API_KEY` environment variable. However, you can inject your own API key directly through the **Settings** menu inside the app without needing to modify `.env`.
 - **Firebase Auth:** It uses standard Firebase Authentication with Google Sign-In, requesting read, modify, and send permissions for Gmail.
 
+## Automatic Android APK Releases
+A GitHub Actions workflow is included to automatically build a debug Android APK every time you push to the `main` branch. 
+- Using Capacitor, it compiles your React + Vite app into an Android WebView wrapper.
+- The `debug.apk` is available in the **Actions** tab as an Artifact.
+- It also automatically creates a GitHub **Release** tagged `latest` containing the built `app-debug.apk`.
+
 ## Tech Stack
 - Frontend: React 19, Tailwind CSS v4, Lucide React
 - Backend: Express, Google APIs (Gmail), @google/genai SDK

@@ -1,0 +1,6 @@
+{
+	"appId": "com.aismartinbox.app",
+	"appName": "AI Smart Inbox",
+	"webDir": "dist",
+	"bundledWebRuntime": false
+}
