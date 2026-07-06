@@ -78,12 +78,17 @@ export default function SmartAssistant({ isOpen, onClose, geminiApiKey }: { isOp
 
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/live${geminiApiKey ? `?apiKey=${geminiApiKey}` : ''}`;
-      wsRef.current = new WebSocket(wsUrl);
-      
+      wsRef.current = new WebSocket(`${protocol}//${window.location.host}/live`);
+
+      wsRef.current.onopen = () => {
+        if (geminiApiKey) {
+          wsRef.current!.send(JSON.stringify({ apiKey: geminiApiKey }));
+        }
+      };
+
       const inputCtx = new window.AudioContext({ sampleRate: 16000 });
       inputAudioCtxRef.current = inputCtx;
-      
+
       const outputCtx = new window.AudioContext({ sampleRate: 24000 });
       outputAudioCtxRef.current = outputCtx;
       nextStartTimeRef.current = outputCtx.currentTime;
@@ -91,10 +96,10 @@ export default function SmartAssistant({ isOpen, onClose, geminiApiKey }: { isOp
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const source = inputCtx.createMediaStreamSource(stream);
       const processor = inputCtx.createScriptProcessor(4096, 1, 1);
-      
+
       source.connect(processor);
       processor.connect(inputCtx.destination);
-      
+
       processor.onaudioprocess = (e) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
           const base64 = pcmToBase64(e.inputBuffer.getChannelData(0));
@@ -110,8 +115,11 @@ export default function SmartAssistant({ isOpen, onClose, geminiApiKey }: { isOp
         if (msg.interrupted) {
           nextStartTimeRef.current = outputCtx.currentTime;
         }
+        if (msg.error) {
+          setMessages(prev => [...prev, { role: 'assistant', text: `Live API error: ${msg.error}` }]);
+        }
       };
-      
+
       setIsLiveActive(true);
       setMessages(prev => [...prev, { role: 'assistant', text: 'Live audio connection established! Start speaking.' }]);
     } catch (err) {

@@ -1,8 +1,27 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from "firebase/auth";
-import firebaseConfig from "../firebase-applet-config.json";
 
-const app = initializeApp(firebaseConfig);
+function getFirebaseConfig() {
+  if (
+    typeof import.meta !== "undefined" &&
+    import.meta.env &&
+    import.meta.env.VITE_FIREBASE_API_KEY
+  ) {
+    return {
+      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+      appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    };
+  }
+  throw new Error(
+    "Firebase configuration not found. Set VITE_FIREBASE_* environment variables or ensure firebase-applet-config.json is present."
+  );
+}
+
+const app = initializeApp(getFirebaseConfig());
 const auth = getAuth(app);
 
 const provider = new GoogleAuthProvider();
@@ -43,7 +62,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     cachedAccessToken = credential.accessToken;
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
-    if (error?.code === 'auth/popup-closed-by-user') {
+    if (error?.code === "auth/popup-closed-by-user") {
       return null;
     }
     console.error("Sign in error:", error);
