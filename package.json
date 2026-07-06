@@ -18,7 +18,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
-    "express-rate-limit": "^7.5.0",
+    "express-rate-limit": "^8.5.2",
     "firebase": "^12.15.0",
     "googleapis": "^173.0.0",
     "helmet": "^8.0.0",
