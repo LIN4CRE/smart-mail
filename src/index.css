@@ -1,0 +1,95 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-gray-900: #1f2430;
+  --color-gray-800: #242b38;
+  --color-gray-700: #343f51;
+  --color-gray-600: #5c6773;
+  --color-gray-500: #8a9199;
+  --color-gray-400: #cbccc6;
+  --color-gray-300: #d9d8d2;
+  --color-gray-200: #e6e5df;
+  --color-gray-100: #f3f2ec;
+  --color-gray-50: #fafafa;
+
+  --color-blue-400: #7fd9eb;
+  --color-blue-500: #5ccfe6;
+  --color-blue-600: #3ea5ba;
+  --color-blue-800: #234e59;
+  --color-blue-900: #193138;
+
+  --color-green-400: #c9eb9c;
+  --color-green-500: #bae67e;
+  --color-green-600: #93b961;
+  --color-green-800: #425e30;
+  --color-green-900: #29381f;
+
+  --color-yellow-400: #ffd480;
+  --color-yellow-500: #ffcc66;
+  --color-yellow-600: #d1a44a;
+  --color-yellow-800: #6b5527;
+  --color-yellow-900: #382d17;
+
+  --color-purple-400: #ded0ff;
+  --color-purple-500: #d4bfff;
+  --color-purple-600: #a995d1;
+  --color-purple-800: #53456b;
+  --color-purple-900: #322b40;
+
+  --color-orange-400: #ffb675;
+  --color-orange-500: #ffa759;
+  --color-orange-600: #cc8342;
+  --color-orange-800: #6b4623;
+  --color-orange-900: #3b2816;
+
+  --color-red-400: #f59e95;
+  --color-red-500: #f28779;
+  --color-red-600: #c46b5f;
+  --color-red-800: #6e3d36;
+  --color-red-900: #3d2421;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  background-color: var(--color-gray-900);
+  color: var(--color-gray-300);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle glow effects */
+.glow-blue {
+  box-shadow: 0 0 15px rgba(92, 207, 230, 0.15);
+}
+.glow-purple {
+  box-shadow: 0 0 15px rgba(212, 191, 255, 0.15);
+}
+.glow-green {
+  box-shadow: 0 0 15px rgba(186, 230, 126, 0.15);
+}
+
+/* Smooth transitions globally for interactive elements */
+button, a, input, select, textarea {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Base custom scrollbar for terminal vibe */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-gray-900);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-gray-700);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gray-600);
+}

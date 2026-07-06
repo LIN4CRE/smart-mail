@@ -1,0 +1,6 @@
+{
+  "name": "Inbox UI",
+  "description": "A modern inbox UI with dummy incoming emails.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
