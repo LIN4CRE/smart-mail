@@ -317,7 +317,7 @@ ${JSON.stringify(emailDetails)}`;
       const bodyText = await getEmailBody(msgDetails);
       const prompt = `Summarize the following email in 1-2 short sentences:\n\n${bodyText}`;
       const genResponse = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: prompt,
       });
 
@@ -362,7 +362,7 @@ ${JSON.stringify(emailDetails)}`;
       }
 
       const genResponse = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: prompt,
       });
 
@@ -417,7 +417,7 @@ ${JSON.stringify(emailDetails)}`;
       const ai = getAi(key);
       const { prompt, mode, image, audio } = req.body;
 
-      let model = "gemini-3.5-flash";
+      let model = "gemini-2.5-flash";
       let tools: any[] = [];
       const generationConfig: any = {};
 
@@ -425,13 +425,13 @@ ${JSON.stringify(emailDetails)}`;
         model = "gemini-2.5-pro";
         generationConfig.thinkingConfig = { thinkingBudget: 2048 };
       } else if (mode === "fast") {
-        model = "gemini-3.1-flash-lite";
+        model = "gemini-2.0-flash-lite";
       } else if (mode === "search") {
         tools = [{ googleSearch: {} }];
       } else if (mode === "maps") {
         tools = [{ googleMaps: {} }];
       } else if (image || audio) {
-        model = "gemini-3.5-flash";
+        model = "gemini-2.5-flash";
       }
 
       let inputData: any = prompt;
