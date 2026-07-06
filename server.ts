@@ -3,7 +3,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import http from "http";
-import { setupRoutes } from "./src/routes";
+import { setupRoutes } from "./api/routes";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 
