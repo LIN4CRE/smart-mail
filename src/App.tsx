@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Inbox, Send, FileText, Trash2, Search, Menu, Bell, Settings, Star, Clock, Archive, Sparkles, Loader2, LogOut, CheckCircle2, AlertTriangle, X, Reply, Copy, Eye, EyeOff
+  Inbox, Send, FileText, Trash2, Search, Menu, Bell, Settings, Star, Clock, Archive, Sparkles, Loader2, LogOut, CheckCircle2, AlertTriangle, X, Reply, Copy, Eye, EyeOff, ListTodo, Smile, Globe, PenTool
 } from 'lucide-react';
 import { initAuth, googleSignIn, logout, getAccessToken } from './auth';
 import SmartAssistant from './components/SmartAssistant';
@@ -54,6 +54,9 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [readStatus, setReadStatus] = useState<Record<string, boolean>>({});
   const [viewedEmail, setViewedEmail] = useState<Email & { categoryName?: string } | null>(null);
+  
+  const [smartActionResult, setSmartActionResult] = useState<{type: string, text: string} | null>(null);
+  const [isPerformingSmartAction, setIsPerformingSmartAction] = useState<string | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -195,6 +198,41 @@ export default function App() {
       showToast(err.message || 'Failed to summarize', 'error');
     } finally {
       setSummarizingIds(prev => ({ ...prev, [emailId]: false }));
+    }
+  };
+
+  const handleSmartAction = async (actionType: string) => {
+    if (!token || !viewedEmail) return;
+    setIsPerformingSmartAction(actionType);
+    setSmartActionResult(null);
+    try {
+      const res = await fetch('/api/emails/smart-action', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-gemini-api-key': geminiApiKey
+        },
+        body: JSON.stringify({ 
+          accessToken: token, 
+          messageId: viewedEmail.id,
+          actionType 
+        })
+      });
+      if (!res.ok) throw new Error('Failed to perform smart action');
+      const data = await res.json();
+      setSmartActionResult({ type: actionType, text: data.result });
+      
+      if (actionType === 'smart-reply') {
+        setComposeTo(viewedEmail.sender);
+        setComposeSubject(viewedEmail.subject.toLowerCase().startsWith('re:') ? viewedEmail.subject : `Re: ${viewedEmail.subject}`);
+        setComposeBody(data.result);
+        setIsComposing(true);
+        setViewedEmail(null);
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to perform smart action', 'error');
+    } finally {
+      setIsPerformingSmartAction(null);
     }
   };
 
@@ -620,6 +658,61 @@ export default function App() {
               </button>
             </div>
             <div className="p-6 overflow-y-auto">
+              <div className="flex flex-wrap gap-2 mb-6">
+                <button 
+                  onClick={() => handleSmartAction('smart-reply')} 
+                  disabled={isPerformingSmartAction === 'smart-reply'}
+                  className="bg-blue-900/30 hover:bg-blue-900/50 text-blue-400 border border-blue-800/50 px-3 py-1.5 rounded-lg font-medium text-xs transition-colors flex items-center disabled:opacity-50"
+                >
+                  {isPerformingSmartAction === 'smart-reply' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <PenTool className="w-3.5 h-3.5 mr-1.5" />} Auto-Draft Reply
+                </button>
+                <button 
+                  onClick={() => handleSmartAction('extract-tasks')} 
+                  disabled={isPerformingSmartAction === 'extract-tasks'}
+                  className="bg-purple-900/30 hover:bg-purple-900/50 text-purple-400 border border-purple-800/50 px-3 py-1.5 rounded-lg font-medium text-xs transition-colors flex items-center disabled:opacity-50"
+                >
+                  {isPerformingSmartAction === 'extract-tasks' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ListTodo className="w-3.5 h-3.5 mr-1.5" />} Extract Tasks
+                </button>
+                <button 
+                  onClick={() => handleSmartAction('priority')} 
+                  disabled={isPerformingSmartAction === 'priority'}
+                  className="bg-orange-900/30 hover:bg-orange-900/50 text-orange-400 border border-orange-800/50 px-3 py-1.5 rounded-lg font-medium text-xs transition-colors flex items-center disabled:opacity-50"
+                >
+                  {isPerformingSmartAction === 'priority' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />} Priority Check
+                </button>
+                <button 
+                  onClick={() => handleSmartAction('sentiment')} 
+                  disabled={isPerformingSmartAction === 'sentiment'}
+                  className="bg-yellow-900/30 hover:bg-yellow-900/50 text-yellow-400 border border-yellow-800/50 px-3 py-1.5 rounded-lg font-medium text-xs transition-colors flex items-center disabled:opacity-50"
+                >
+                  {isPerformingSmartAction === 'sentiment' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Smile className="w-3.5 h-3.5 mr-1.5" />} Tone Analysis
+                </button>
+                <button 
+                  onClick={() => handleSmartAction('translate')} 
+                  disabled={isPerformingSmartAction === 'translate'}
+                  className="bg-green-900/30 hover:bg-green-900/50 text-green-400 border border-green-800/50 px-3 py-1.5 rounded-lg font-medium text-xs transition-colors flex items-center disabled:opacity-50"
+                >
+                  {isPerformingSmartAction === 'translate' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Globe className="w-3.5 h-3.5 mr-1.5" />} Translate
+                </button>
+              </div>
+
+              {smartActionResult && (
+                <div className="mb-6 bg-gray-800/80 border border-gray-600 p-4 rounded-xl text-sm text-gray-200 relative group/result">
+                  <h4 className="font-medium text-white mb-2 flex items-center capitalize">
+                    <Sparkles className="w-4 h-4 inline mr-2 text-blue-400" />
+                    {smartActionResult.type.replace('-', ' ')} Result
+                  </h4>
+                  <div className="whitespace-pre-wrap">{smartActionResult.text}</div>
+                  <button 
+                    onClick={() => copyToClipboard(smartActionResult.text)}
+                    className="absolute top-4 right-4 p-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded opacity-0 group-hover/result:opacity-100 transition-opacity"
+                    title="Copy Result"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               {summaries[viewedEmail.id] && (
                 <div className="mb-6 bg-blue-900/20 border border-blue-800/50 p-4 rounded-xl text-sm text-blue-200 relative group/summary">
                   <h4 className="font-medium text-blue-300 mb-2 flex items-center">

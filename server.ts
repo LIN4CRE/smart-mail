@@ -184,6 +184,61 @@ async function startServer() {
     }
   });
 
+  app.post("/api/emails/smart-action", async (req, res) => {
+    try {
+      const ai = getAi(req);
+      const { accessToken, messageId, actionType } = req.body;
+      if (!accessToken || !messageId || !actionType) {
+        return res.status(400).json({ error: "Missing required parameters" });
+      }
+
+      const oauth2Client = new google.auth.OAuth2();
+      oauth2Client.setCredentials({ access_token: accessToken });
+      const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+
+      const msgDetails = await gmail.users.messages.get({
+        userId: "me",
+        id: messageId,
+        format: "full",
+      });
+
+      let bodyText = msgDetails.data.snippet || "";
+      if (msgDetails.data.payload?.parts) {
+        const textPart = msgDetails.data.payload.parts.find(p => p.mimeType === "text/plain");
+        if (textPart && textPart.body?.data) {
+          bodyText = Buffer.from(textPart.body.data, "base64").toString("utf-8");
+        }
+      } else if (msgDetails.data.payload?.body?.data) {
+        bodyText = Buffer.from(msgDetails.data.payload.body.data, "base64").toString("utf-8");
+      }
+
+      let prompt = "";
+      if (actionType === "smart-reply") {
+        prompt = `Draft a professional, concise reply to the following email:\n\n${bodyText}`;
+      } else if (actionType === "extract-tasks") {
+        prompt = `Extract a clear bulleted list of action items or tasks from the following email. If there are none, say "No action items found."\n\n${bodyText}`;
+      } else if (actionType === "priority") {
+        prompt = `Analyze the priority (High/Medium/Low) of this email and briefly explain why:\n\n${bodyText}`;
+      } else if (actionType === "sentiment") {
+        prompt = `Analyze the tone and sentiment (e.g., positive, frustrated, urgent, formal) of this email:\n\n${bodyText}`;
+      } else if (actionType === "translate") {
+        prompt = `Translate the following email to English (if it's already in English, just return "Already in English"):\n\n${bodyText}`;
+      } else {
+        return res.status(400).json({ error: "Invalid action type" });
+      }
+
+      const genResponse = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: prompt
+      });
+
+      res.json({ result: genResponse.text });
+    } catch (error: any) {
+      console.error("Error in smart action:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/emails/send", async (req, res) => {
     try {
       const { accessToken, to, subject, body } = req.body;
