@@ -50,9 +50,20 @@ npm run start
 
 ## Automatic Android APK Releases
 A GitHub Actions workflow is included to automatically build a debug Android APK every time you push to the `main` branch. 
+- **Requires Node.js 22.0.0** or higher (configured in the workflow).
 - Using Capacitor, it compiles your React + Vite app into an Android WebView wrapper.
 - The `debug.apk` is available in the **Actions** tab as an Artifact.
 - It also automatically creates a GitHub **Release** tagged `latest` containing the built `app-debug.apk`.
+
+### Pushing to GitHub
+To push your local repository and trigger the auto-build workflow, run the following in your terminal:
+```bash
+# Add your GitHub repository as a remote
+git remote add origin https://github.com/your-username/your-repo.git
+
+# Push the main branch
+git push -u origin main
+```
 
 ## Tech Stack
 - Frontend: React 19, Tailwind CSS v4, Lucide React
