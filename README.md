@@ -7,6 +7,7 @@ A next-generation intelligent email client powered by Gemini and the Gmail API. 
 - **Unified Smart Inbox:** Automatically categorizes your emails into human-readable buckets (Newsletters, Updates, Important, etc.).
 - **Smart Cleanup:** Identifies subscriptions and marketing spam, and allows you to bulk-trash them with one click.
 - **Instant Summaries:** Uses Gemini to summarize long emails directly from the inbox list view.
+- **Smart Actions:** Auto-draft replies, extract action items, check email priority, analyze tone, and translate emails directly from the email view.
 - **Smart Assistant Sidebar:** A unified AI chat sidebar powered by Gemini. You can:
   - Discuss general questions.
   - Ask it to search the web or Maps.

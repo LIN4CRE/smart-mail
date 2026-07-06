@@ -288,7 +288,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900 font-sans">
         <div className="max-w-md w-full bg-gray-800 p-8 rounded-2xl shadow-lg border border-gray-700 text-center space-y-6">
-          <div className="mx-auto w-16 h-16 bg-blue-900/30 text-blue-400 rounded-full flex items-center justify-center mb-6">
+          <div className="mx-auto w-16 h-16 bg-blue-900/40 text-blue-400 rounded-full flex items-center justify-center mb-6 glow-blue">
             <Sparkles className="w-8 h-8" />
           </div>
           <h1 className="text-2xl font-semibold text-white tracking-tight">AI Smart Inbox</h1>
@@ -298,7 +298,7 @@ export default function App() {
           <button 
             onClick={handleLogin}
             disabled={isLoggingIn}
-            className="w-full flex items-center justify-center py-3 px-4 border border-gray-600 rounded-xl shadow-sm bg-gray-800 text-sm font-medium text-gray-200 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-colors disabled:opacity-50"
+            className="w-full flex items-center justify-center py-3 px-4 border border-gray-600 rounded-xl shadow-sm bg-gray-800 text-sm font-medium text-gray-200 hover:bg-gray-700 hover:border-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-blue-500 transition-all disabled:opacity-50"
           >
             {isLoggingIn ? <Loader2 className="w-5 h-5 animate-spin text-gray-400" /> : (
               <>
@@ -345,7 +345,7 @@ export default function App() {
         </div>
         
         <div className="p-4">
-          <button onClick={() => setIsComposing(true)} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-xl flex items-center justify-center transition-colors shadow-sm">
+          <button onClick={() => setIsComposing(true)} className="w-full bg-blue-600 hover:bg-blue-500 glow-blue text-white font-medium py-2.5 px-4 rounded-xl flex items-center justify-center transition-all shadow-sm">
             <span className="mr-2">+</span> Compose
           </button>
         </div>
@@ -368,9 +368,6 @@ export default function App() {
             <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
             Primary Account
           </div>
-          <button onClick={() => alert("Multi-account support is coming soon. You will be able to add another account here.")} className="flex items-center text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors w-full px-3 py-2 rounded-lg hover:bg-gray-700 mt-1">
-            <span className="mr-2">+</span> Add Account
-          </button>
         </div>
 
         <div className="p-4 border-t border-gray-700">
@@ -404,7 +401,7 @@ export default function App() {
             <Settings onClick={() => setIsSettingsOpen(true)} className="w-5 h-5 text-gray-400 cursor-pointer hover:text-white" />
             <button 
               onClick={() => setIsAssistantOpen(true)}
-              className="ml-4 bg-blue-600/10 text-blue-400 hover:bg-blue-600 hover:text-white px-4 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center"
+              className="ml-4 bg-purple-600/10 text-purple-400 hover:bg-purple-600 hover:text-white glow-purple px-4 py-1.5 rounded-full text-sm font-medium transition-all flex items-center"
             >
               <Sparkles className="w-4 h-4 mr-1.5" />
               Smart Assistant

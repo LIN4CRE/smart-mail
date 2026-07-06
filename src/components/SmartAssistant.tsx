@@ -116,7 +116,7 @@ export default function SmartAssistant({ isOpen, onClose, geminiApiKey }: { isOp
       setMessages(prev => [...prev, { role: 'assistant', text: 'Live audio connection established! Start speaking.' }]);
     } catch (err) {
       console.error("Failed to start Live API", err);
-      alert("Microphone access denied or error starting audio.");
+      setMessages(prev => [...prev, { role: 'assistant', text: 'Microphone access denied or error starting audio.' }]);
     }
   };
 
