@@ -1,0 +1,12 @@
+0000000000000000000000000000000000000000 95e7a6077a7f2c9f15ab4b519998c76d954ab172 David <dlinacre16@gmail.com> 1783337226 +0000	commit (initial): chore: initial commit with android build workflow
+95e7a6077a7f2c9f15ab4b519998c76d954ab172 32c0ab424bd74e2c5df1de428008c69f23880ed2 David <dlinacre16@gmail.com> 1783338111 +0000	commit: fix: handle auth popup closure gracefully
+32c0ab424bd74e2c5df1de428008c69f23880ed2 32c0ab424bd74e2c5df1de428008c69f23880ed2 David <dlinacre16@gmail.com> 1783338120 +0000	Branch: renamed refs/heads/master to refs/heads/main
+32c0ab424bd74e2c5df1de428008c69f23880ed2 037b2e73df2c3bdd31fdaef6998f66e3d478d279 David <dlinacre16@gmail.com> 1783338941 +0000	commit: feat: add smart actions (reply, tasks, priority, tone, translate)
+037b2e73df2c3bdd31fdaef6998f66e3d478d279 e697139ae638ecc4e0315d61190c4bc568b55bf4 David <dlinacre16@gmail.com> 1783340337 +0000	commit: fix: remove alert in iframe, update README, ensure customer instructions
+e697139ae638ecc4e0315d61190c4bc568b55bf4 b1bd089e97c72a24f11e777bfbb7e22516689de5 David <dlinacre16@gmail.com> 1783340601 +0000	commit: chore: add license, changelog, and github templates
+b1bd089e97c72a24f11e777bfbb7e22516689de5 ae8437fbfb7d6794642aa68ceff13f2ae0cf16eb David <dlinacre16@gmail.com> 1783340945 +0000	commit: style: apply Ayu Mirage aesthetic, glow effects, and replace alerts with toasts
+ae8437fbfb7d6794642aa68ceff13f2ae0cf16eb cc0db91fb8bae0724b1f92c9ae31c0881be69527 David <dlinacre16@gmail.com> 1783341005 +0000	commit: chore: remove coming soon placeholder
+cc0db91fb8bae0724b1f92c9ae31c0881be69527 0ba0392092176ae143e65a4e023c9a994abb7072 David <dlinacre16@gmail.com> 1783341631 +0000	commit: feat: add bulk selection and actions (read/unread/trash)
+0ba0392092176ae143e65a4e023c9a994abb7072 4f7a9f1d5aef5d22a44099cb0a8856166fb1ad77 David <dlinacre16@gmail.com> 1783343247 +0000	commit: fix: remove bundledWebRuntime from capacitor.config.ts
+4f7a9f1d5aef5d22a44099cb0a8856166fb1ad77 07eae8aa52e2319547ac3d354a3a47312fdce2b4 David <dlinacre16@gmail.com> 1783343597 +0000	commit: feat: implement bulk unsubscribe via http and mailto
+07eae8aa52e2319547ac3d354a3a47312fdce2b4 499d536d1ff9c23981e1aff9c7d3c2009f7acedc David <dlinacre16@gmail.com> 1783343608 +0000	commit (amend): feat: implement bulk unsubscribe via http and mailto

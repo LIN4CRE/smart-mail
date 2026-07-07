@@ -1,0 +1,14 @@
+9cc4347c5735d06bfb9e2a594e5efcc5f67c87fe		branch 'main' of https://github.com/LIN4CRE/smart-mail
+e0ab9099b4eeb89fe976d7472425f76a6fda4953	not-for-merge	branch 'dependabot/github_actions/actions/checkout-7' of https://github.com/LIN4CRE/smart-mail
+8a9f427fcbfa77366ea6311160fff63abd01ee68	not-for-merge	branch 'dependabot/github_actions/actions/setup-java-5' of https://github.com/LIN4CRE/smart-mail
+068ec2378cf9c8e15b8f86f7ed8628e3b398245c	not-for-merge	branch 'dependabot/github_actions/actions/setup-node-6' of https://github.com/LIN4CRE/smart-mail
+754100d70420906ff7d14eb41bafa5f9cc9bb802	not-for-merge	branch 'dependabot/github_actions/actions/upload-artifact-7' of https://github.com/LIN4CRE/smart-mail
+1e5213f7431be65f2966800d56f5ae1839dce756	not-for-merge	branch 'dependabot/github_actions/softprops/action-gh-release-3' of https://github.com/LIN4CRE/smart-mail
+7dabeeb7addbec3cd9bd00a68566eadd03db719e	not-for-merge	branch 'dependabot/npm_and_yarn/esbuild-0.28.1' of https://github.com/LIN4CRE/smart-mail
+f5f21cec1bea52d06d5798867369dcbc325a98cb	not-for-merge	branch 'dependabot/npm_and_yarn/express-rate-limit-8.5.2' of https://github.com/LIN4CRE/smart-mail
+5ab9efee3b6366209677ca1477893a49f28674f7	not-for-merge	branch 'dependabot/npm_and_yarn/lucide-react-1.23.0' of https://github.com/LIN4CRE/smart-mail
+378e152d956bd3c4d4de036d0ac079312642ab40	not-for-merge	branch 'dependabot/npm_and_yarn/multi-b251156d90' of https://github.com/LIN4CRE/smart-mail
+59e6dff0f0d41ad7abecfd70113f935f7ff20980	not-for-merge	branch 'dependabot/npm_and_yarn/types/node-26.1.0' of https://github.com/LIN4CRE/smart-mail
+4e664dc1218ded837d4fe6514b90ac1401a31248	not-for-merge	branch 'dependabot/npm_and_yarn/typescript-6.0.3' of https://github.com/LIN4CRE/smart-mail
+0f12b0650f98cee958d37106640f95ad39fcfc30	not-for-merge	branch 'dependabot/npm_and_yarn/vite-8.1.3' of https://github.com/LIN4CRE/smart-mail
+135a374bd166deb2800559c5a5cacc29b519ee79	not-for-merge	branch 'dependabot/npm_and_yarn/vitejs/plugin-react-6.0.3' of https://github.com/LIN4CRE/smart-mail
