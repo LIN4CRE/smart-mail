@@ -1,8 +1,5 @@
 name: Build Android APK
 
-permissions:
-  contents: write
-
 on:
   push:
     branches:
@@ -31,7 +28,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '21'
+          java-version: '17'
 
       - name: Install npm dependencies
         run: npm ci

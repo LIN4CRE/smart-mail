@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Inbox, Send, FileText, Trash2, Search, Menu, Bell, Settings, Star, Clock, Archive, Sparkles, Loader2, LogOut, CheckCircle2, AlertTriangle, X, Reply, Copy, Eye, EyeOff, ListTodo, Smile, Globe, PenTool
+  Inbox, Send, FileText, Trash2, Search, Menu, Bell, Settings, Star, Clock, Archive, Sparkles, Loader2, LogOut, CheckCircle2, AlertTriangle, X, Reply, Copy, Eye, EyeOff, ListTodo, Smile, Globe, PenTool, Paperclip
 } from 'lucide-react';
 import { initAuth, googleSignIn, logout, getAccessToken } from './auth';
 import SmartAssistant from './components/SmartAssistant';
@@ -20,6 +20,7 @@ type Email = {
   recommendUnsubscribe?: boolean;
   importance?: 'high' | 'medium' | 'low';
   isRead: boolean;
+  hasAttachments?: boolean;
 };
 
 type Category = {
@@ -577,9 +578,14 @@ export default function App() {
                           </div>
                           <span className="text-xs text-gray-500 sm:hidden">{email.date}</span>
                         </div>
-                        <span className={`text-sm mt-0.5 truncate ${!email.isRead ? 'font-semibold text-white' : 'text-gray-300'}`}>
-                          {email.subject}
-                        </span>
+                        <div className="flex items-center space-x-2 mt-0.5">
+                          <span className={`text-sm truncate ${!email.isRead ? 'font-semibold text-white' : 'text-gray-300'}`}>
+                            {email.subject}
+                          </span>
+                          {email.hasAttachments && (
+                            <Paperclip className="w-3.5 h-3.5 text-gray-400 shrink-0" title="Has attachments" />
+                          )}
+                        </div>
                         <span className="text-sm text-gray-400 truncate mt-0.5">
                           {email.snippet}
                         </span>

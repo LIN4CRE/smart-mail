@@ -1,69 +1,72 @@
-import express from "express";
-import path from "path";
-import { createServer as createViteServer } from "vite";
-import { google } from "googleapis";
-import { GoogleGenAI, Type, LiveServerMessage, Modality } from "@google/genai";
-import { WebSocketServer } from "ws";
-import http from "http";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
+// server.ts
+var import_express = __toESM(require("express"), 1);
+var import_path = __toESM(require("path"), 1);
+var import_vite = require("vite");
+var import_googleapis = require("googleapis");
+var import_genai = require("@google/genai");
+var import_ws = require("ws");
+var import_http = __toESM(require("http"), 1);
+var ai = new import_genai.GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 async function startServer() {
-  const app = express();
-  const PORT = 3000;
-
-  app.use(express.json({ limit: "50mb" }));
-
-  const getAi = (req: express.Request) => {
-    const key = req.headers["x-gemini-api-key"] as string || process.env.GEMINI_API_KEY;
+  const app = (0, import_express.default)();
+  const PORT = 3e3;
+  app.use(import_express.default.json({ limit: "50mb" }));
+  const getAi = (req) => {
+    const key = req.headers["x-gemini-api-key"] || process.env.GEMINI_API_KEY;
     if (!key) throw new Error("Gemini API key is required. Please set it in Settings.");
-    return new GoogleGenAI({ apiKey: key });
+    return new import_genai.GoogleGenAI({ apiKey: key });
   };
-
-  // Define API routes
   app.post("/api/emails/organize", async (req, res) => {
     try {
-      const ai = getAi(req);
+      const ai2 = getAi(req);
       const { accessToken } = req.body;
       if (!accessToken) {
         return res.status(401).json({ error: "No access token provided" });
       }
-
-      const oauth2Client = new google.auth.OAuth2();
+      const oauth2Client = new import_googleapis.google.auth.OAuth2();
       oauth2Client.setCredentials({ access_token: accessToken });
-
-      const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-      
-      const [response, attachmentResponse] = await Promise.all([
-        gmail.users.messages.list({
-          userId: "me",
-          maxResults: 20,
-          q: "in:inbox"
-        }),
-        gmail.users.messages.list({
-          userId: "me",
-          maxResults: 20,
-          q: "in:inbox has:attachment"
-        })
-      ]);
-
-      const attachmentIds = new Set((attachmentResponse.data.messages || []).map(m => m.id));
-
+      const gmail = import_googleapis.google.gmail({ version: "v1", auth: oauth2Client });
+      const response = await gmail.users.messages.list({
+        userId: "me",
+        maxResults: 20,
+        q: "in:inbox"
+      });
       const messages = response.data.messages || [];
       const emailDetails = await Promise.all(messages.map(async (msg) => {
         const msgDetails = await gmail.users.messages.get({
           userId: "me",
-          id: msg.id!,
+          id: msg.id,
           format: "metadata",
           metadataHeaders: ["Subject", "From", "Date", "List-Unsubscribe"]
         });
-        
         const headers = msgDetails.data.payload?.headers || [];
         const subject = headers.find((h) => h.name === "Subject")?.value || "No Subject";
         const sender = headers.find((h) => h.name === "From")?.value || "Unknown Sender";
         const date = headers.find((h) => h.name === "Date")?.value || "";
         const unsubscribe = headers.find((h) => h.name?.toLowerCase() === "list-unsubscribe")?.value || "";
-        
         return {
           id: msg.id,
           snippet: msgDetails.data.snippet,
@@ -71,50 +74,46 @@ async function startServer() {
           sender,
           date,
           unsubscribeLink: unsubscribe,
-          isRead: !msgDetails.data.labelIds?.includes('UNREAD'),
-          hasAttachments: attachmentIds.has(msg.id)
+          isRead: !msgDetails.data.labelIds?.includes("UNREAD")
         };
       }));
-
       if (emailDetails.length === 0) {
         return res.json({ categories: [] });
       }
-
       const prompt = `
         Analyze these emails and organize them into smart categories (e.g., 'Newsletters', 'Important', 'Updates', 'Social', 'Promotions', 'To Unsubscribe').
         Emails:
         ${JSON.stringify(emailDetails)}
       `;
-
-      const genResponse = await ai.models.generateContent({
+      const genResponse = await ai2.models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
-            type: Type.OBJECT,
+            type: import_genai.Type.OBJECT,
             properties: {
               categories: {
-                type: Type.ARRAY,
+                type: import_genai.Type.ARRAY,
                 items: {
-                  type: Type.OBJECT,
+                  type: import_genai.Type.OBJECT,
                   properties: {
-                    name: { type: Type.STRING },
-                    description: { type: Type.STRING },
+                    name: { type: import_genai.Type.STRING },
+                    description: { type: import_genai.Type.STRING },
                     emails: {
-                      type: Type.ARRAY,
+                      type: import_genai.Type.ARRAY,
                       items: {
-                        type: Type.OBJECT,
+                        type: import_genai.Type.OBJECT,
                         properties: {
-                          id: { type: Type.STRING },
-                          subject: { type: Type.STRING },
-                          sender: { type: Type.STRING },
-                          snippet: { type: Type.STRING },
-                          date: { type: Type.STRING },
-                          unsubscribeLink: { type: Type.STRING, nullable: true },
-                          recommendUnsubscribe: { type: Type.BOOLEAN, description: "True if this is likely spam or unwanted newsletter" },
-                          importance: { type: Type.STRING, description: "'high', 'medium', or 'low' based on urgency and relevance" },
-                          isRead: { type: Type.BOOLEAN }
+                          id: { type: import_genai.Type.STRING },
+                          subject: { type: import_genai.Type.STRING },
+                          sender: { type: import_genai.Type.STRING },
+                          snippet: { type: import_genai.Type.STRING },
+                          date: { type: import_genai.Type.STRING },
+                          unsubscribeLink: { type: import_genai.Type.STRING, nullable: true },
+                          recommendUnsubscribe: { type: import_genai.Type.BOOLEAN, description: "True if this is likely spam or unwanted newsletter" },
+                          importance: { type: import_genai.Type.STRING, description: "'high', 'medium', or 'low' based on urgency and relevance" },
+                          isRead: { type: import_genai.Type.BOOLEAN }
                         }
                       }
                     }
@@ -125,39 +124,22 @@ async function startServer() {
           }
         }
       });
-
       const structuredResult = JSON.parse(genResponse.text || "{}");
-      
-      // Merge ground truth data back into AI response to prevent hallucinations/dropping
-      const emailMap = new Map(emailDetails.map((e: any) => [e.id, e]));
-      if (structuredResult.categories) {
-        structuredResult.categories = structuredResult.categories.map((cat: any) => ({
-          ...cat,
-          emails: cat.emails.map((e: any) => ({
-            ...e,
-            hasAttachments: emailMap.get(e.id)?.hasAttachments || false
-          }))
-        }));
-      }
-
       res.json(structuredResult);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error organizing emails:", error);
       res.status(500).json({ error: error.message });
     }
   });
-
   app.post("/api/emails/bulk-action", async (req, res) => {
     try {
       const { accessToken, messageIds, action } = req.body;
       if (!accessToken || !messageIds || !Array.isArray(messageIds) || !action) {
         return res.status(400).json({ error: "Missing required parameters" });
       }
-
-      const oauth2Client = new google.auth.OAuth2();
+      const oauth2Client = new import_googleapis.google.auth.OAuth2();
       oauth2Client.setCredentials({ access_token: accessToken });
-      const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-
+      const gmail = import_googleapis.google.gmail({ version: "v1", auth: oauth2Client });
       if (action === "trash") {
         await gmail.users.messages.batchModify({
           userId: "me",
@@ -186,89 +168,70 @@ async function startServer() {
       } else {
         return res.status(400).json({ error: "Invalid action" });
       }
-
       res.json({ success: true });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error bulk modifying emails:", error);
       res.status(500).json({ error: error.message });
     }
   });
-
   app.post("/api/emails/unsubscribe", async (req, res) => {
     try {
       const { accessToken, links, messageIds } = req.body;
       if (!accessToken || !links || !Array.isArray(links)) {
         return res.status(400).json({ error: "Missing required parameters" });
       }
-
-      const oauth2Client = new google.auth.OAuth2();
+      const oauth2Client = new import_googleapis.google.auth.OAuth2();
       oauth2Client.setCredentials({ access_token: accessToken });
-      const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-
+      const gmail = import_googleapis.google.gmail({ version: "v1", auth: oauth2Client });
       let successCount = 0;
-      
       for (const header of links) {
         if (!header) continue;
         const matches = header.match(/<([^>]+)>/g);
         if (!matches) continue;
-        
         let unsubscribed = false;
-
-        // Try http first
         for (const match of matches) {
           const link = match.slice(1, -1);
-          if (link.startsWith('http') && !unsubscribed) {
-             try {
-               await fetch(link, { method: 'POST' }).catch(() => fetch(link));
-               unsubscribed = true;
-             } catch(e) {
-               console.error("HTTP unsubscribe failed", e);
-             }
-          }
-        }
-        
-        if (!unsubscribed) {
-          for (const match of matches) {
-            const link = match.slice(1, -1);
-            if (link.startsWith('mailto:')) {
-               try {
-                  const url = new URL(link);
-                  const to = url.pathname;
-                  const subject = url.searchParams.get('subject') || 'Unsubscribe';
-                  const body = url.searchParams.get('body') || 'Please unsubscribe me.';
-                  
-                  const messageParts = [
-                    `To: ${to}`,
-                    'Content-Type: text/plain; charset=utf-8',
-                    'MIME-Version: 1.0',
-                    `Subject: ${subject}`,
-                    '',
-                    body
-                  ];
-                  
-                  const encodedMessage = Buffer.from(messageParts.join('\n'))
-                    .toString('base64')
-                    .replace(/\+/g, '-')
-                    .replace(/\//g, '_')
-                    .replace(/=+$/, '');
-                    
-                  await gmail.users.messages.send({
-                    userId: 'me',
-                    requestBody: { raw: encodedMessage }
-                  });
-                  unsubscribed = true;
-                  break;
-               } catch(e) {
-                 console.error("Mailto unsubscribe failed", e);
-               }
+          if (link.startsWith("http") && !unsubscribed) {
+            try {
+              await fetch(link, { method: "POST" }).catch(() => fetch(link));
+              unsubscribed = true;
+            } catch (e) {
+              console.error("HTTP unsubscribe failed", e);
             }
           }
         }
-        
+        if (!unsubscribed) {
+          for (const match of matches) {
+            const link = match.slice(1, -1);
+            if (link.startsWith("mailto:")) {
+              try {
+                const url = new URL(link);
+                const to = url.pathname;
+                const subject = url.searchParams.get("subject") || "Unsubscribe";
+                const body = url.searchParams.get("body") || "Please unsubscribe me.";
+                const messageParts = [
+                  `To: ${to}`,
+                  "Content-Type: text/plain; charset=utf-8",
+                  "MIME-Version: 1.0",
+                  `Subject: ${subject}`,
+                  "",
+                  body
+                ];
+                const encodedMessage = Buffer.from(messageParts.join("\n")).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+                await gmail.users.messages.send({
+                  userId: "me",
+                  requestBody: { raw: encodedMessage }
+                });
+                unsubscribed = true;
+                break;
+              } catch (e) {
+                console.error("Mailto unsubscribe failed", e);
+              }
+            }
+          }
+        }
         if (unsubscribed) successCount++;
       }
-
-      // Optionally trash the messages after unsubscribing
       if (messageIds && messageIds.length > 0) {
         await gmail.users.messages.batchModify({
           userId: "me",
@@ -277,199 +240,177 @@ async function startServer() {
             addLabelIds: ["TRASH"],
             removeLabelIds: ["INBOX"]
           }
-        }).catch(e => console.error("Failed to trash after unsubscribe", e));
+        }).catch((e) => console.error("Failed to trash after unsubscribe", e));
       }
-
       res.json({ success: true, count: successCount });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error unsubscribing:", error);
       res.status(500).json({ error: error.message });
     }
   });
-
   app.post("/api/emails/trash", async (req, res) => {
     try {
       const { accessToken, messageId } = req.body;
       if (!accessToken || !messageId) {
         return res.status(400).json({ error: "Missing required parameters" });
       }
-
-      const oauth2Client = new google.auth.OAuth2();
+      const oauth2Client = new import_googleapis.google.auth.OAuth2();
       oauth2Client.setCredentials({ access_token: accessToken });
-      const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-
+      const gmail = import_googleapis.google.gmail({ version: "v1", auth: oauth2Client });
       await gmail.users.messages.trash({ userId: "me", id: messageId });
       res.json({ success: true });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error trashing email:", error);
       res.status(500).json({ error: error.message });
     }
   });
-
   app.post("/api/emails/summarize", async (req, res) => {
     try {
-      const ai = getAi(req);
+      const ai2 = getAi(req);
       const { accessToken, messageId } = req.body;
       if (!accessToken || !messageId) {
         return res.status(400).json({ error: "Missing required parameters" });
       }
-
-      const oauth2Client = new google.auth.OAuth2();
+      const oauth2Client = new import_googleapis.google.auth.OAuth2();
       oauth2Client.setCredentials({ access_token: accessToken });
-      const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-
+      const gmail = import_googleapis.google.gmail({ version: "v1", auth: oauth2Client });
       const msgDetails = await gmail.users.messages.get({
         userId: "me",
         id: messageId,
-        format: "full",
+        format: "full"
       });
-
       let bodyText = msgDetails.data.snippet || "";
       if (msgDetails.data.payload?.parts) {
-        const textPart = msgDetails.data.payload.parts.find(p => p.mimeType === "text/plain");
+        const textPart = msgDetails.data.payload.parts.find((p) => p.mimeType === "text/plain");
         if (textPart && textPart.body?.data) {
           bodyText = Buffer.from(textPart.body.data, "base64").toString("utf-8");
         }
       } else if (msgDetails.data.payload?.body?.data) {
         bodyText = Buffer.from(msgDetails.data.payload.body.data, "base64").toString("utf-8");
       }
-
       const prompt = `Summarize the following email in 1-2 short sentences:\\n\\n${bodyText}`;
-      const genResponse = await ai.models.generateContent({
+      const genResponse = await ai2.models.generateContent({
         model: "gemini-3.5-flash",
         contents: prompt
       });
-
       res.json({ summary: genResponse.text });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error summarizing email:", error);
       res.status(500).json({ error: error.message });
     }
   });
-
   app.post("/api/emails/smart-action", async (req, res) => {
     try {
-      const ai = getAi(req);
+      const ai2 = getAi(req);
       const { accessToken, messageId, actionType } = req.body;
       if (!accessToken || !messageId || !actionType) {
         return res.status(400).json({ error: "Missing required parameters" });
       }
-
-      const oauth2Client = new google.auth.OAuth2();
+      const oauth2Client = new import_googleapis.google.auth.OAuth2();
       oauth2Client.setCredentials({ access_token: accessToken });
-      const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-
+      const gmail = import_googleapis.google.gmail({ version: "v1", auth: oauth2Client });
       const msgDetails = await gmail.users.messages.get({
         userId: "me",
         id: messageId,
-        format: "full",
+        format: "full"
       });
-
       let bodyText = msgDetails.data.snippet || "";
       if (msgDetails.data.payload?.parts) {
-        const textPart = msgDetails.data.payload.parts.find(p => p.mimeType === "text/plain");
+        const textPart = msgDetails.data.payload.parts.find((p) => p.mimeType === "text/plain");
         if (textPart && textPart.body?.data) {
           bodyText = Buffer.from(textPart.body.data, "base64").toString("utf-8");
         }
       } else if (msgDetails.data.payload?.body?.data) {
         bodyText = Buffer.from(msgDetails.data.payload.body.data, "base64").toString("utf-8");
       }
-
       let prompt = "";
       if (actionType === "smart-reply") {
-        prompt = `Draft a professional, concise reply to the following email:\n\n${bodyText}`;
+        prompt = `Draft a professional, concise reply to the following email:
+
+${bodyText}`;
       } else if (actionType === "extract-tasks") {
-        prompt = `Extract a clear bulleted list of action items or tasks from the following email. If there are none, say "No action items found."\n\n${bodyText}`;
+        prompt = `Extract a clear bulleted list of action items or tasks from the following email. If there are none, say "No action items found."
+
+${bodyText}`;
       } else if (actionType === "priority") {
-        prompt = `Analyze the priority (High/Medium/Low) of this email and briefly explain why:\n\n${bodyText}`;
+        prompt = `Analyze the priority (High/Medium/Low) of this email and briefly explain why:
+
+${bodyText}`;
       } else if (actionType === "sentiment") {
-        prompt = `Analyze the tone and sentiment (e.g., positive, frustrated, urgent, formal) of this email:\n\n${bodyText}`;
+        prompt = `Analyze the tone and sentiment (e.g., positive, frustrated, urgent, formal) of this email:
+
+${bodyText}`;
       } else if (actionType === "translate") {
-        prompt = `Translate the following email to English (if it's already in English, just return "Already in English"):\n\n${bodyText}`;
+        prompt = `Translate the following email to English (if it's already in English, just return "Already in English"):
+
+${bodyText}`;
       } else {
         return res.status(400).json({ error: "Invalid action type" });
       }
-
-      const genResponse = await ai.models.generateContent({
+      const genResponse = await ai2.models.generateContent({
         model: "gemini-3.5-flash",
         contents: prompt
       });
-
       res.json({ result: genResponse.text });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error in smart action:", error);
       res.status(500).json({ error: error.message });
     }
   });
-
   app.post("/api/emails/send", async (req, res) => {
     try {
       const { accessToken, to, subject, body } = req.body;
       if (!accessToken || !to || !subject || !body) {
         return res.status(400).json({ error: "Missing required parameters" });
       }
-
-      const oauth2Client = new google.auth.OAuth2();
+      const oauth2Client = new import_googleapis.google.auth.OAuth2();
       oauth2Client.setCredentials({ access_token: accessToken });
-      const gmail = google.gmail({ version: "v1", auth: oauth2Client });
-
-      const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
+      const gmail = import_googleapis.google.gmail({ version: "v1", auth: oauth2Client });
+      const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString("base64")}?=`;
       const messageParts = [
         `To: ${to}`,
-        'Content-Type: text/html; charset=utf-8',
-        'MIME-Version: 1.0',
+        "Content-Type: text/html; charset=utf-8",
+        "MIME-Version: 1.0",
         `Subject: ${utf8Subject}`,
-        '',
+        "",
         body
       ];
-      const message = messageParts.join('\n');
-      
-      const encodedMessage = Buffer.from(message)
-        .toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
-
+      const message = messageParts.join("\n");
+      const encodedMessage = Buffer.from(message).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
       await gmail.users.messages.send({
-        userId: 'me',
+        userId: "me",
         requestBody: {
           raw: encodedMessage
         }
       });
-      
       res.json({ success: true });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error sending email:", error);
       res.status(500).json({ error: error.message });
     }
   });
-
   app.post("/api/chat", async (req, res) => {
     try {
-      const ai = getAi(req);
+      const ai2 = getAi(req);
       const { prompt, mode, history, image, audio } = req.body;
-      
       let model = "gemini-3.5-flash";
-      let tools: any[] = [];
-      let generation_config: any = {};
-      
+      let tools = [];
+      let generation_config = {};
       if (mode === "thinking") {
         model = "gemini-3.1-pro-preview";
         generation_config.thinking_level = "high";
       } else if (mode === "fast") {
         model = "gemini-3.1-flash-lite";
       } else if (mode === "search") {
-        tools = [{ type: 'google_search' }];
+        tools = [{ type: "google_search" }];
       } else if (mode === "maps") {
-        tools = [{ type: 'google_maps' }];
+        tools = [{ type: "google_maps" }];
       } else if (image) {
         model = "gemini-3.1-pro-preview";
       } else if (audio) {
         model = "gemini-3.5-flash";
       }
-
-      let inputData: any = prompt;
-      
+      let inputData = prompt;
       if (image) {
         inputData = [
           { type: "image", data: image.data, mime_type: image.mimeType },
@@ -481,92 +422,79 @@ async function startServer() {
           { type: "text", text: prompt || "Transcribe and analyze this audio" }
         ];
       }
-
-      const params: any = {
+      const params = {
         model,
-        input: inputData,
+        input: inputData
       };
-
       if (tools.length > 0) params.tools = tools;
       if (Object.keys(generation_config).length > 0) params.generation_config = generation_config;
-      
-      // We don't have previous_interaction_id preserved on client easily in this quick setup, so we just use interactions.create
-      const interaction = await ai.interactions.create(params);
-      
+      const interaction = await ai2.interactions.create(params);
       let textResponse = "";
       for (const step of interaction.steps) {
-        if (step.type === 'model_output') {
-          const textContent = step.content?.find(c => c.type === 'text');
+        if (step.type === "model_output") {
+          const textContent = step.content?.find((c) => c.type === "text");
           if (textContent && textContent.text) {
             textResponse += textContent.text;
           }
         }
       }
-
       res.json({ text: textResponse });
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error in chat:", error);
       res.status(500).json({ error: error.message });
     }
   });
-
-  // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
+    const vite = await (0, import_vite.createServer)({
       server: { middlewareMode: true },
-      appType: "spa",
+      appType: "spa"
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    const distPath = import_path.default.join(process.cwd(), "dist");
+    app.use(import_express.default.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      res.sendFile(import_path.default.join(distPath, "index.html"));
     });
   }
-
-  const server = http.createServer(app);
-  const wss = new WebSocketServer({ server, path: '/live' });
-
+  const server = import_http.default.createServer(app);
+  const wss = new import_ws.WebSocketServer({ server, path: "/live" });
   wss.on("connection", async (clientWs, req) => {
     try {
-      const url = new URL(req.url!, `http://${req.headers.host}`);
+      const url = new URL(req.url, `http://${req.headers.host}`);
       const key = url.searchParams.get("apiKey") || process.env.GEMINI_API_KEY;
       if (!key) throw new Error("Gemini API key is required.");
-      const wsAi = new GoogleGenAI({ apiKey: key });
-
+      const wsAi = new import_genai.GoogleGenAI({ apiKey: key });
       const session = await wsAi.live.connect({
         model: "gemini-3.1-flash-live-preview",
         callbacks: {
-          onmessage: (message: LiveServerMessage) => {
+          onmessage: (message) => {
             const audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
             if (audio) clientWs.send(JSON.stringify({ audio }));
             if (message.serverContent?.interrupted)
               clientWs.send(JSON.stringify({ interrupted: true }));
-          },
+          }
         },
         config: {
-          responseModalities: [Modality.AUDIO],
+          responseModalities: [import_genai.Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Zephyr" } }
           },
-          systemInstruction: "You are a smart email assistant.",
-        },
+          systemInstruction: "You are a smart email assistant."
+        }
       });
-
       clientWs.on("message", (data) => {
         try {
           const { audio } = JSON.parse(data.toString());
           if (audio) {
             session.sendRealtimeInput({
-              audio: { data: audio, mimeType: "audio/pcm;rate=16000" },
+              audio: { data: audio, mimeType: "audio/pcm;rate=16000" }
             });
           }
         } catch (e) {
           console.error("WS msg parse err", e);
         }
       });
-      
       clientWs.on("close", () => {
         session.close();
       });
@@ -574,10 +502,9 @@ async function startServer() {
       console.error("Live API connection failed:", error);
     }
   });
-
   server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
-
 startServer();
+//# sourceMappingURL=server.cjs.map
