@@ -37,12 +37,12 @@ async function startServer() {
       const [response, attachmentResponse] = await Promise.all([
         gmail.users.messages.list({
           userId: "me",
-          maxResults: 20,
+          maxResults: 50,
           q: "in:inbox"
         }),
         gmail.users.messages.list({
           userId: "me",
-          maxResults: 20,
+          maxResults: 50,
           q: "in:inbox has:attachment"
         })
       ]);
@@ -398,6 +398,89 @@ async function startServer() {
       res.json({ result: genResponse.text });
     } catch (error: any) {
       console.error("Error in smart action:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  
+  app.post("/api/emails/get", async (req, res) => {
+    try {
+      const { accessToken, messageId } = req.body;
+      if (!accessToken || !messageId) {
+        return res.status(400).json({ error: "Missing required parameters" });
+      }
+
+      const oauth2Client = new google.auth.OAuth2();
+      oauth2Client.setCredentials({ access_token: accessToken });
+      const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+
+      const msgDetails = await gmail.users.messages.get({
+        userId: "me",
+        id: messageId,
+        format: "full",
+      });
+
+      let htmlBody = "";
+      let textBody = "";
+      const attachments = [];
+      
+      const processParts = (parts) => {
+        for (const part of parts) {
+          if (part.filename && part.filename.length > 0) {
+            attachments.push({
+              id: part.body?.attachmentId || part.partId,
+              filename: part.filename,
+              mimeType: part.mimeType,
+              size: part.body?.size
+            });
+          } else if (part.mimeType === "text/html" && part.body?.data) {
+            htmlBody = Buffer.from(part.body.data, "base64").toString("utf-8");
+          } else if (part.mimeType === "text/plain" && part.body?.data) {
+            textBody = Buffer.from(part.body.data, "base64").toString("utf-8");
+          } else if (part.parts) {
+            processParts(part.parts);
+          }
+        }
+      };
+
+      if (msgDetails.data.payload?.parts) {
+        processParts(msgDetails.data.payload.parts);
+      } else if (msgDetails.data.payload?.body?.data) {
+        const data = Buffer.from(msgDetails.data.payload.body.data, "base64").toString("utf-8");
+        if (msgDetails.data.payload.mimeType === "text/html") {
+          htmlBody = data;
+        } else {
+          textBody = data;
+        }
+      }
+
+      res.json({ html: htmlBody, text: textBody, attachments });
+    } catch (error) {
+      console.error("Error fetching email:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/emails/attachment", async (req, res) => {
+    try {
+      const { accessToken, messageId, attachmentId } = req.body;
+      if (!accessToken || !messageId || !attachmentId) {
+        return res.status(400).json({ error: "Missing required parameters" });
+      }
+
+      const oauth2Client = new google.auth.OAuth2();
+      oauth2Client.setCredentials({ access_token: accessToken });
+      const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+
+      const attachment = await gmail.users.messages.attachments.get({
+        userId: "me",
+        messageId: messageId,
+        id: attachmentId,
+      });
+
+      res.json({ data: attachment.data.data }); // base64 string
+    } catch (error) {
+      console.error("Error fetching attachment:", error);
       res.status(500).json({ error: error.message });
     }
   });

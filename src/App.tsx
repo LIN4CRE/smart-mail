@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { 
   Inbox, Mail, Send, FileText, Trash2, Search, Menu, Bell, Settings, Star, Clock, Archive, Sparkles, Loader2, LogOut, CheckCircle2, AlertTriangle, X, Reply, Copy, Eye, EyeOff, ListTodo, Smile, Globe, PenTool, Paperclip
 } from 'lucide-react';
@@ -61,13 +62,87 @@ const [needsAuth, setNeedsAuth] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [readStatus, setReadStatus] = useState<Record<string, boolean>>({});
   const [viewedEmail, setViewedEmail] = useState<Email & { categoryName?: string } | null>(null);
+  const [viewedEmailContent, setViewedEmailContent] = useState<{ html: string, text: string, attachments?: any[] } | null>(null);
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
+  const [isFetchingEmail, setIsFetchingEmail] = useState(false);
   
   const [selectedEmails, setSelectedEmails] = useState<Set<string>>(new Set());
 
   const [smartActionResult, setSmartActionResult] = useState<{type: string, text: string} | null>(null);
   const [isPerformingSmartAction, setIsPerformingSmartAction] = useState<string | null>(null);
 
-const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+
+  
+  const handleDownloadAttachment = async (emailId: string, attachment: any) => {
+    setIsDownloading(attachment.id);
+    const token = getTokenForEmail(emailId);
+    if (!token) return;
+    try {
+      const res = await fetch('/api/emails/attachment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken: token, messageId: emailId, attachmentId: attachment.id })
+      });
+      const data = await res.json();
+      if (data.data) {
+        // convert base64 (url safe) to blob
+        const base64 = data.data.replace(/-/g, '+').replace(/_/g, '/');
+        const binaryString = window.atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: attachment.mimeType || 'application/octet-stream' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = attachment.filename || 'download';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (e) {
+      console.error('Failed to download attachment:', e);
+      showToast('Failed to download attachment', 'error');
+    } finally {
+      setIsDownloading(null);
+    }
+  };
+
+
+  const handleViewEmail = async (email: Email & { categoryName?: string }) => {
+    setViewedEmail(email);
+    setViewedEmailContent(null);
+    setIsFetchingEmail(true);
+    setSmartActionResult(null);
+    const token = getTokenForEmail(email.id);
+    if (!token) return;
+    try {
+      const res = await fetch('/api/emails/get', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken: token, messageId: email.id })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setViewedEmailContent(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsFetchingEmail(false);
+    }
+    
+    // Mark as read locally and remotely
+    if (!readStatus[email.id] && !email.isRead) {
+      setReadStatus(prev => ({ ...prev, [email.id]: true }));
+      handleBulkAction('mark-read', new Set([email.id]));
+    }
+  };
+
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
@@ -305,10 +380,11 @@ const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     }
   };
 
-  const handleBulkAction = async (action: 'trash' | 'mark-read' | 'mark-unread' | 'unsubscribe') => {
-    if (selectedEmails.size === 0) return;
+  const handleBulkAction = async (action: 'trash' | 'mark-read' | 'mark-unread' | 'unsubscribe', specificIds?: Set<string>) => {
+    const ids = specificIds || selectedEmails;
+    if (ids.size === 0) return;
     // For bulk actions, we'll just use the token of the first selected email for simplicity
-    const firstSelectedId = Array.from(selectedEmails)[0] as string;
+    const firstSelectedId = Array.from(ids)[0] as string;
     const token = getTokenForEmail(firstSelectedId);
     if (!token) return;
     const messageIds = Array.from(selectedEmails);
@@ -624,7 +700,7 @@ const showToast = (message: string, type: 'success' | 'error' = 'success') => {
                               onClick={(e) => e.stopPropagation()}
                             />
                           </div>
-                          <div className="flex-1 min-w-0 flex flex-col cursor-pointer" onClick={() => setViewedEmail(email)}>
+                          <div className="flex-1 min-w-0 flex flex-col cursor-pointer" onClick={() => handleViewEmail(email)}>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center space-x-2">
                                 <span className={`text-sm ${!isEmailRead ? 'font-semibold text-white' : 'text-gray-300'}`}>
@@ -937,13 +1013,49 @@ const showToast = (message: string, type: 'success' | 'error' = 'success') => {
                   </button>
                 </div>
               )}
-              <div className="text-gray-300 whitespace-pre-wrap text-sm leading-relaxed">
-                {viewedEmail.snippet}
-                <div className="mt-8 text-xs text-gray-500 italic">
-                  Note: For full HTML formatting and content, please view this email directly in the Gmail web interface.
+              {viewedEmailContent?.attachments && viewedEmailContent.attachments.length > 0 && (
+                <div className="mb-6 bg-gray-800/80 border border-gray-600 p-4 rounded-xl">
+                  <h4 className="font-medium text-gray-300 mb-3 flex items-center text-sm">
+                    <Paperclip className="w-4 h-4 mr-2" />
+                    Attachments ({viewedEmailContent.attachments.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {viewedEmailContent.attachments.map(att => (
+                      <button
+                        key={att.id}
+                        onClick={() => handleDownloadAttachment(viewedEmail.id, att)}
+                        disabled={isDownloading === att.id}
+                        className="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-2 rounded-lg text-xs font-medium flex items-center transition-colors disabled:opacity-50"
+                      >
+                        {isDownloading === att.id ? (
+                          <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+                        ) : (
+                          <FileText className="w-3.5 h-3.5 mr-2" />
+                        )}
+                        <span className="truncate max-w-[150px]">{att.filename}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
+              )}
+
+              <div className="text-gray-300 text-sm leading-relaxed overflow-x-hidden">
+                {isFetchingEmail ? (
+                  <div className="flex justify-center py-10">
+                    <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+                  </div>
+                ) : viewedEmailContent ? (
+                  viewedEmailContent.html ? (
+                    <div className="email-html-container bg-white text-black p-4 rounded-lg" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(viewedEmailContent.html) }} />
+                  ) : (
+                    <div className="whitespace-pre-wrap">{viewedEmailContent.text || viewedEmail.snippet}</div>
+                  )
+                ) : (
+                  <div className="whitespace-pre-wrap">{viewedEmail.snippet}</div>
+                )}
               </div>
             </div>
+            
             <div className="bg-gray-800 px-6 py-4 border-t border-gray-700 flex items-center justify-end space-x-3">
               <button 
                 onClick={() => { handleQuickReply(viewedEmail); setViewedEmail(null); }}
