@@ -93,3 +93,15 @@ button, a, input, select, textarea {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-gray-600);
 }
+
+.email-html-container {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.email-html-container img {
+  max-width: 100%;
+  height: auto;
+}
+.email-html-container table {
+  max-width: 100%;
+}

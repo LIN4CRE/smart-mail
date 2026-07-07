@@ -3,6 +3,21 @@ import { Sparkles, Image as ImageIcon, Mic, X, Send, Search, MapPin, Brain, Zap,
 
 type Mode = 'general' | 'search' | 'maps' | 'thinking' | 'fast' | 'live';
 
+
+const fetchWithRetry = async (url: string, options: any, retries = 3, delay = 1000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok) return res;
+      if (i === retries - 1) return res; 
+    } catch (err: any) {
+      if (i === retries - 1) throw err;
+    }
+    await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
+  }
+  throw new Error("Unreachable");
+};
+
 export default function SmartAssistant({ isOpen, onClose, geminiApiKey }: { isOpen: boolean, onClose: () => void, geminiApiKey: string }) {
   const [messages, setMessages] = useState<{role: 'user' | 'assistant', text: string, type?: string}[]>([]);
   const [input, setInput] = useState('');
@@ -138,7 +153,7 @@ export default function SmartAssistant({ isOpen, onClose, geminiApiKey }: { isOp
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetchWithRetry('/api/chat', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

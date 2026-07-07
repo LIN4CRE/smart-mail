@@ -36,6 +36,32 @@ type Category = {
   emails: Email[];
 };
 
+
+const fetchWithRetry = async (url: string, options: any, retries = 3, delay = 1000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(url, options);
+      if (res.ok) return res;
+      if (i === retries - 1) return res; // let caller handle final error status
+      console.warn('API ' + url + ' failed with status ' + res.status + '. Retrying...');
+    } catch (err: any) {
+      if (i === retries - 1) throw err;
+      console.warn('API ' + url + ' network error: ' + err.message + '. Retrying...');
+    }
+    await new Promise(r => setTimeout(r, delay * Math.pow(2, i)));
+  }
+  throw new Error("Unreachable");
+};
+
+
+// Setup DOMPurify hook to ensure all links open in new tab securely
+DOMPurify.addHook('afterSanitizeAttributes', function (node) {
+  if ('target' in node) {
+    node.setAttribute('target', '_blank');
+    node.setAttribute('rel', 'noopener noreferrer');
+  }
+});
+
 export default function App() {
 const [needsAuth, setNeedsAuth] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -78,7 +104,7 @@ const [needsAuth, setNeedsAuth] = useState(true);
     const token = getTokenForEmail(emailId);
     if (!token) return;
     try {
-      const res = await fetch('/api/emails/attachment', {
+      const res = await fetchWithRetry('/api/emails/attachment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken: token, messageId: emailId, attachmentId: attachment.id })
@@ -111,7 +137,25 @@ const [needsAuth, setNeedsAuth] = useState(true);
   };
 
 
-  const handleViewEmail = async (email: Email & { categoryName?: string }) => {
+const handleViewEmail = async (email: Email & { categoryName?: string }) => {
+    const isCurrentlyRead = readStatus[email.id] ?? email.isRead;
+    setReadStatus(prev => ({ ...prev, [email.id]: true }));
+    
+    if (!isCurrentlyRead) {
+      const token = getTokenForEmail(email.id);
+      if (token) {
+        fetchWithRetry('/api/emails/bulk-action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            accessToken: token,
+            messageIds: [email.id],
+            action: 'mark-read'
+          })
+        }).catch(err => console.error("Failed to mark as read:", err));
+      }
+    }
+
     setViewedEmail(email);
     setViewedEmailContent(null);
     setIsFetchingEmail(true);
@@ -119,7 +163,7 @@ const [needsAuth, setNeedsAuth] = useState(true);
     const token = getTokenForEmail(email.id);
     if (!token) return;
     try {
-      const res = await fetch('/api/emails/get', {
+      const res = await fetchWithRetry('/api/emails/get', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken: token, messageId: email.id })
@@ -215,7 +259,7 @@ const [needsAuth, setNeedsAuth] = useState(true);
       const allCategoryMaps = new Map<string, Category>();
       
       const promises = accounts.map(async (acc) => {
-        const res = await fetch('/api/emails/organize', {
+        const res = await fetchWithRetry('/api/emails/organize', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -325,7 +369,7 @@ const [needsAuth, setNeedsAuth] = useState(true);
     if (!token) return;
     setSummarizingIds(prev => ({ ...prev, [emailId]: true }));
     try {
-      const res = await fetch('/api/emails/summarize', {
+      const res = await fetchWithRetry('/api/emails/summarize', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -350,7 +394,7 @@ const [needsAuth, setNeedsAuth] = useState(true);
     setIsPerformingSmartAction(actionType);
     setSmartActionResult(null);
     try {
-      const res = await fetch('/api/emails/smart-action', {
+      const res = await fetchWithRetry('/api/emails/smart-action', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -380,7 +424,7 @@ const [needsAuth, setNeedsAuth] = useState(true);
     }
   };
 
-  const handleBulkAction = async (action: 'trash' | 'mark-read' | 'mark-unread' | 'unsubscribe', specificIds?: Set<string>) => {
+  const handleBulkAction = async (action: 'trash' | 'mark-read' | 'mark-unread' | 'unsubscribe' | 'archive', specificIds?: Set<string>) => {
     const ids = specificIds || selectedEmails;
     if (ids.size === 0) return;
     // For bulk actions, we'll just use the token of the first selected email for simplicity
@@ -410,14 +454,14 @@ const [needsAuth, setNeedsAuth] = useState(true);
         return;
       }
 
-      const res = await fetch('/api/emails/bulk-action', {
+      const res = await fetchWithRetry('/api/emails/bulk-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken: token, messageIds, action })
       });
       if (!res.ok) throw new Error(`Failed to bulk ${action}`);
       
-      if (action === 'trash') {
+      if (action === 'trash' || action === 'archive') {
         setCategories(prev => prev.map(c => ({
           ...c,
           emails: c.emails.filter(e => !selectedEmails.has(e.id))
@@ -462,7 +506,7 @@ const [needsAuth, setNeedsAuth] = useState(true);
     
     setIsSending(true);
     try {
-      const res = await fetch('/api/emails/send', {
+      const res = await fetchWithRetry('/api/emails/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -493,8 +537,25 @@ const [needsAuth, setNeedsAuth] = useState(true);
     setIsComposing(true);
   };
 
-  const toggleReadStatus = (emailId: string, currentIsRead: boolean) => {
+const toggleReadStatus = async (emailId: string, currentIsRead: boolean) => {
     setReadStatus(prev => ({ ...prev, [emailId]: !currentIsRead }));
+    const token = getTokenForEmail(emailId);
+    if (!token) return;
+    try {
+      await fetchWithRetry('/api/emails/bulk-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accessToken: token,
+          messageIds: [emailId],
+          action: currentIsRead ? 'mark-unread' : 'mark-read'
+        })
+      });
+    } catch (err) {
+      console.error("Failed to sync read status", err);
+      // Revert on failure
+      setReadStatus(prev => ({ ...prev, [emailId]: currentIsRead }));
+    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -691,6 +752,7 @@ const [needsAuth, setNeedsAuth] = useState(true);
                       const isEmailRead = readStatus[email.id] ?? email.isRead;
                       return (
                         <div key={email.id} className="group flex flex-col sm:flex-row sm:items-center px-6 py-4 hover:bg-gray-700/50 transition-colors">
+                          <div className={`w-2.5 h-2.5 rounded-full mr-3 shrink-0 ${!isEmailRead ? "bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" : "bg-transparent"}`}></div>
                           <div className="mr-4 flex items-center pt-1 sm:pt-0">
                             <input
                               type="checkbox"
@@ -760,6 +822,20 @@ const [needsAuth, setNeedsAuth] = useState(true);
                           >
                             <Reply className="w-4 h-4" />
                           </button>
+<button 
+                            onClick={(e) => { e.stopPropagation(); handleBulkAction('archive', new Set([email.id])); }} 
+                            className="p-1.5 hover:text-yellow-400 hover:bg-yellow-900/30 rounded-lg transition-colors" 
+                            title="Archive"
+                          >
+                            <Archive className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleBulkAction('trash', new Set([email.id])); }} 
+                            className="p-1.5 hover:text-red-400 hover:bg-red-900/30 rounded-lg transition-colors" 
+                            title="Trash"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                           <button 
                             onClick={(e) => { e.stopPropagation(); handleSummarize(email.id); }} 
                             disabled={summarizingIds[email.id]} 
@@ -790,6 +866,9 @@ const [needsAuth, setNeedsAuth] = useState(true);
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 border border-gray-600 shadow-2xl rounded-full px-6 py-3 flex items-center space-x-6 z-40 transition-transform">
             <span className="text-sm font-medium text-white">{selectedEmails.size} selected</span>
             <div className="h-4 w-px bg-gray-700"></div>
+            <button onClick={() => handleBulkAction('archive')} className="text-yellow-400 hover:text-yellow-300 transition-colors flex items-center" title="Archive">
+              <Archive className="w-4 h-4 mr-1.5" /> <span className="text-xs">Archive</span>
+            </button>
             <button onClick={() => handleBulkAction('mark-read')} className="text-gray-300 hover:text-white transition-colors flex items-center" title="Mark as Read">
               <Eye className="w-4 h-4 mr-1.5" /> <span className="text-xs">Read</span>
             </button>

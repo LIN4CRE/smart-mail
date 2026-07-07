@@ -8,6 +8,50 @@ import http from "http";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+
+const withRetry = async <T>(fn: () => Promise<T>, retries = 3, delayMs = 1000): Promise<T> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      if (i === retries - 1) throw err;
+      console.warn('Attempt ' + (i + 1) + ' failed: ' + err.message + '. Retrying...');
+      await new Promise(r => setTimeout(r, delayMs * Math.pow(2, i))); // exponential backoff
+    }
+  }
+  throw new Error("Unreachable");
+};
+
+const generateContentWithFallback = async (ai: GoogleGenAI, initialModel: string, prompt: string, config: any = {}) => {
+  try {
+    return await withRetry(() => ai.models.generateContent({
+      model: initialModel,
+      contents: prompt,
+      ...(Object.keys(config).length > 0 && { config })
+    }), 2, 1000);
+  } catch (error: any) {
+    console.warn('Primary model ' + initialModel + ' failed:', error.message);
+    const fallbackModels = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
+    const { thinkingConfig, ...fallbackConfig } = config || {};
+
+    for (const fallbackModel of fallbackModels) {
+      if (fallbackModel === initialModel) continue;
+      try {
+        console.log('Retrying with fallback model: ' + fallbackModel);
+        return await withRetry(() => ai.models.generateContent({
+          model: fallbackModel,
+          contents: prompt,
+          ...(Object.keys(fallbackConfig).length > 0 && { config: fallbackConfig })
+        }), 2, 1000);
+      } catch (fallbackError: any) {
+        console.warn('Fallback model ' + fallbackModel + ' failed:', fallbackError.message);
+      }
+    }
+    throw new Error('All models failed. Last error: ' + error.message);
+  }
+};
+
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -50,32 +94,45 @@ async function startServer() {
       const attachmentIds = new Set((attachmentResponse.data.messages || []).map(m => m.id));
 
       const messages = response.data.messages || [];
-      const emailDetails = await Promise.all(messages.map(async (msg) => {
-        const msgDetails = await gmail.users.messages.get({
-          userId: "me",
-          id: msg.id!,
-          format: "metadata",
-          metadataHeaders: ["Subject", "From", "Date", "List-Unsubscribe"]
-        });
-        
-        const headers = msgDetails.data.payload?.headers || [];
-        const subject = headers.find((h) => h.name === "Subject")?.value || "No Subject";
-        const sender = headers.find((h) => h.name === "From")?.value || "Unknown Sender";
-        const date = headers.find((h) => h.name === "Date")?.value || "";
-        const unsubscribe = headers.find((h) => h.name?.toLowerCase() === "list-unsubscribe")?.value || "";
-        
-        return {
-          id: msg.id,
-          snippet: msgDetails.data.snippet,
-          subject,
-          sender,
-          date,
-          unsubscribeLink: unsubscribe,
-          isRead: !msgDetails.data.labelIds?.includes('UNREAD'),
-          hasAttachments: attachmentIds.has(msg.id)
-        };
-      }));
+// Helper to process in chunks to avoid rate limits
+      const chunkArray = <T>(arr: T[], size: number): T[][] => {
+        const result = [];
+        for (let i = 0; i < arr.length; i += size) {
+          result.push(arr.slice(i, i + size));
+        }
+        return result;
+      };
 
+      const emailDetails: any[] = [];
+      const chunks = chunkArray(messages, 10);
+      for (const chunk of chunks) {
+        const chunkDetails = await Promise.all(chunk.map(async (msg) => {
+          const msgDetails = await gmail.users.messages.get({
+            userId: "me",
+            id: msg.id!,
+            format: "metadata",
+            metadataHeaders: ["Subject", "From", "Date", "List-Unsubscribe"]
+          });
+          
+          const headers = msgDetails.data.payload?.headers || [];
+          const subject = headers.find((h) => h.name === "Subject")?.value || "No Subject";
+          const sender = headers.find((h) => h.name === "From")?.value || "Unknown Sender";
+          const date = headers.find((h) => h.name === "Date")?.value || "";
+          const unsubscribe = headers.find((h) => h.name?.toLowerCase() === "list-unsubscribe")?.value || "";
+          
+          return {
+            id: msg.id,
+            snippet: msgDetails.data.snippet,
+            subject,
+            sender,
+            date,
+            unsubscribeLink: unsubscribe,
+            isRead: !msgDetails.data.labelIds?.includes('UNREAD'),
+            hasAttachments: attachmentIds.has(msg.id)
+          };
+        }));
+        emailDetails.push(...chunkDetails);
+      }
       if (emailDetails.length === 0) {
         return res.json({ categories: [] });
       }
@@ -86,10 +143,7 @@ async function startServer() {
         ${JSON.stringify(emailDetails)}
       `;
 
-      const genResponse = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: {
+      const genResponse = await generateContentWithFallback(ai, "gemini-3.5-flash", prompt, {
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -107,14 +161,8 @@ async function startServer() {
                         type: Type.OBJECT,
                         properties: {
                           id: { type: Type.STRING },
-                          subject: { type: Type.STRING },
-                          sender: { type: Type.STRING },
-                          snippet: { type: Type.STRING },
-                          date: { type: Type.STRING },
-                          unsubscribeLink: { type: Type.STRING, nullable: true },
-                          recommendUnsubscribe: { type: Type.BOOLEAN, description: "True if this is likely spam or unwanted newsletter" },
-                          importance: { type: Type.STRING, description: "'high', 'medium', or 'low' based on urgency and relevance" },
-                          isRead: { type: Type.BOOLEAN }
+                          importance: { type: Type.STRING },
+                          importanceReason: { type: Type.STRING }
                         }
                       }
                     }
@@ -123,8 +171,7 @@ async function startServer() {
               }
             }
           }
-        }
-      });
+        });
 
       const structuredResult = JSON.parse(genResponse.text || "{}");
       
@@ -181,6 +228,14 @@ async function startServer() {
           requestBody: {
             ids: messageIds,
             addLabelIds: ["UNREAD"]
+          }
+        });
+      } else if (action === "archive") {
+        await gmail.users.messages.batchModify({
+          userId: "me",
+          requestBody: {
+            ids: messageIds,
+            removeLabelIds: ["INBOX"]
           }
         });
       } else {
@@ -328,17 +383,14 @@ async function startServer() {
       if (msgDetails.data.payload?.parts) {
         const textPart = msgDetails.data.payload.parts.find(p => p.mimeType === "text/plain");
         if (textPart && textPart.body?.data) {
-          bodyText = Buffer.from(textPart.body.data, "base64").toString("utf-8");
+          bodyText = Buffer.from(textPart.body.data, "base64url").toString("utf-8");
         }
       } else if (msgDetails.data.payload?.body?.data) {
-        bodyText = Buffer.from(msgDetails.data.payload.body.data, "base64").toString("utf-8");
+        bodyText = Buffer.from(msgDetails.data.payload.body.data, "base64url").toString("utf-8");
       }
 
       const prompt = `Summarize the following email in 1-2 short sentences:\\n\\n${bodyText}`;
-      const genResponse = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: prompt
-      });
+      const genResponse = await generateContentWithFallback(ai, "gemini-3.5-flash", prompt);
 
       res.json({ summary: genResponse.text });
     } catch (error: any) {
@@ -369,10 +421,10 @@ async function startServer() {
       if (msgDetails.data.payload?.parts) {
         const textPart = msgDetails.data.payload.parts.find(p => p.mimeType === "text/plain");
         if (textPart && textPart.body?.data) {
-          bodyText = Buffer.from(textPart.body.data, "base64").toString("utf-8");
+          bodyText = Buffer.from(textPart.body.data, "base64url").toString("utf-8");
         }
       } else if (msgDetails.data.payload?.body?.data) {
-        bodyText = Buffer.from(msgDetails.data.payload.body.data, "base64").toString("utf-8");
+        bodyText = Buffer.from(msgDetails.data.payload.body.data, "base64url").toString("utf-8");
       }
 
 let prompt = "";
@@ -406,11 +458,7 @@ let prompt = "";
         return res.status(400).json({ error: "Invalid action type" });
       }
 
-      const genResponse = await ai.models.generateContent({
-        model,
-        contents: prompt,
-        ...(Object.keys(config).length > 0 && { config })
-      });
+      const genResponse = await generateContentWithFallback(ai, model, prompt, config);
 
       res.json({ result: genResponse.text });
     } catch (error: any) {
@@ -451,9 +499,9 @@ let prompt = "";
               size: part.body?.size
             });
           } else if (part.mimeType === "text/html" && part.body?.data) {
-            htmlBody = Buffer.from(part.body.data, "base64").toString("utf-8");
+            htmlBody = Buffer.from(part.body.data, "base64url").toString("utf-8");
           } else if (part.mimeType === "text/plain" && part.body?.data) {
-            textBody = Buffer.from(part.body.data, "base64").toString("utf-8");
+            textBody = Buffer.from(part.body.data, "base64url").toString("utf-8");
           } else if (part.parts) {
             processParts(part.parts);
           }
@@ -463,7 +511,7 @@ let prompt = "";
       if (msgDetails.data.payload?.parts) {
         processParts(msgDetails.data.payload.parts);
       } else if (msgDetails.data.payload?.body?.data) {
-        const data = Buffer.from(msgDetails.data.payload.body.data, "base64").toString("utf-8");
+        const data = Buffer.from(msgDetails.data.payload.body.data, "base64url").toString("utf-8");
         if (msgDetails.data.payload.mimeType === "text/html") {
           htmlBody = data;
         } else {
@@ -591,7 +639,7 @@ let prompt = "";
       if (Object.keys(generation_config).length > 0) params.generation_config = generation_config;
       
       // We don't have previous_interaction_id preserved on client easily in this quick setup, so we just use interactions.create
-      const interaction = await ai.interactions.create(params);
+      const interaction = await withRetry(() => ai.interactions.create(params), 2, 1000);
       
       let textResponse = "";
       for (const step of interaction.steps) {
