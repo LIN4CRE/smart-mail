@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Inbox, Send, FileText, Trash2, Search, Menu, Bell, Settings, Star, Clock, Archive, Sparkles, Loader2, LogOut, CheckCircle2, AlertTriangle, X, Reply, Copy, Eye, EyeOff, ListTodo, Smile, Globe, PenTool, Paperclip
+  Inbox, Mail, Send, FileText, Trash2, Search, Menu, Bell, Settings, Star, Clock, Archive, Sparkles, Loader2, LogOut, CheckCircle2, AlertTriangle, X, Reply, Copy, Eye, EyeOff, ListTodo, Smile, Globe, PenTool, Paperclip
 } from 'lucide-react';
 import { initAuth, googleSignIn, logout, getAccessToken } from './auth';
 import SmartAssistant from './components/SmartAssistant';
@@ -21,6 +21,12 @@ type Email = {
   importance?: 'high' | 'medium' | 'low';
   isRead: boolean;
   hasAttachments?: boolean;
+  accountEmail?: string;
+};
+
+type Account = {
+  email: string;
+  token: string;
 };
 
 type Category = {
@@ -30,9 +36,9 @@ type Category = {
 };
 
 export default function App() {
-  const [needsAuth, setNeedsAuth] = useState(true);
+const [needsAuth, setNeedsAuth] = useState(true);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -61,7 +67,7 @@ export default function App() {
   const [smartActionResult, setSmartActionResult] = useState<{type: string, text: string} | null>(null);
   const [isPerformingSmartAction, setIsPerformingSmartAction] = useState<string | null>(null);
 
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
@@ -69,35 +75,48 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = initAuth(
       (user, t) => {
-        setToken(t);
-        setNeedsAuth(false);
-        fetchEmails(t);
+        if (user.email) {
+          setAccounts(prev => {
+            const existing = prev.filter(a => a.email !== user.email);
+            return [...existing, { email: user.email!, token: t }];
+          });
+          setNeedsAuth(false);
+        }
       },
       () => {
-        setNeedsAuth(true);
-        setToken(null);
+        if (accounts.length === 0) {
+          setNeedsAuth(true);
+        }
       }
     );
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (accounts.length > 0) {
+      fetchEmails();
+    }
+  }, [accounts]);
+
   // Hourly checks
   useEffect(() => {
-    if (!token) return;
+    if (accounts.length === 0) return;
     const intervalId = setInterval(() => {
-      fetchEmails(token);
+      fetchEmails();
     }, 3600000);
     return () => clearInterval(intervalId);
-  }, [token]);
+  }, [accounts]);
 
   const handleLogin = async () => {
     setIsLoggingIn(true);
     try {
       const result = await googleSignIn();
-      if (result) {
-        setToken(result.accessToken);
+      if (result && result.user.email) {
+        setAccounts(prev => {
+          const existing = prev.filter(a => a.email !== result.user.email);
+          return [...existing, { email: result.user.email!, token: result.accessToken }];
+        });
         setNeedsAuth(false);
-        fetchEmails(result.accessToken);
       }
     } catch (err) {
       console.error('Login failed:', err);
@@ -108,24 +127,52 @@ export default function App() {
 
   const handleLogout = async () => {
     await logout();
+    setAccounts([]);
     setCategories([]);
+    setNeedsAuth(true);
   };
 
-  const fetchEmails = async (accessToken: string) => {
+  const fetchEmails = async () => {
+    if (accounts.length === 0) return;
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/emails/organize', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-gemini-api-key': geminiApiKey 
-        },
-        body: JSON.stringify({ accessToken })
+      const allCategoryMaps = new Map<string, Category>();
+      
+      const promises = accounts.map(async (acc) => {
+        const res = await fetch('/api/emails/organize', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-gemini-api-key': geminiApiKey 
+          },
+          body: JSON.stringify({ accessToken: acc.token })
+        });
+        if (!res.ok) throw new Error(`Failed to fetch for ${acc.email}`);
+        const data = await res.json();
+        const accountCategories: Category[] = data.categories || [];
+        
+        return { email: acc.email, categories: accountCategories };
       });
-      if (!res.ok) throw new Error('Failed to fetch and organize emails');
-      const data = await res.json();
-      setCategories(data.categories || []);
+      
+      const results = await Promise.allSettled(promises);
+      
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          const accEmail = result.value.email;
+          for (const cat of result.value.categories) {
+            if (!allCategoryMaps.has(cat.name)) {
+              allCategoryMaps.set(cat.name, { ...cat, emails: [] });
+            }
+            const taggedEmails = cat.emails.map(e => ({ ...e, accountEmail: accEmail }));
+            allCategoryMaps.get(cat.name)!.emails.push(...taggedEmails);
+          }
+        } else {
+          console.error(result.reason);
+        }
+      }
+      
+      setCategories(Array.from(allCategoryMaps.values()));
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -133,8 +180,20 @@ export default function App() {
     }
   };
 
+  
+  const getTokenForEmail = (emailId: string) => {
+    for (const cat of categories) {
+      const em = cat.emails.find(e => e.id === emailId);
+      if (em) {
+        return accounts.find(a => a.email === em.accountEmail)?.token;
+      }
+    }
+    return accounts[0]?.token; // fallback
+  };
+
   const handleTrash = async (emailId: string) => {
     const confirmed = window.confirm('Are you sure you want to move this email to Trash?');
+    const token = getTokenForEmail(emailId);
     if (!confirmed || !token) return;
 
     try {
@@ -157,8 +216,10 @@ export default function App() {
   };
 
   const handleBulkUnsubscribe = async (emailsToUnsubscribe: Email[]) => {
-    const confirmed = window.confirm(`Are you sure you want to unsubscribe and clean up ${emailsToUnsubscribe.length} unwanted email(s)? They will be unsubscribed and moved to Trash.`);
-    if (!confirmed || !token) return;
+    const confirmed = window.confirm(`Are you sure you want to unsubscribe from ${emailsToUnsubscribe.length} emails?`);
+    if (!confirmed) return;
+    const token = accounts[0]?.token;
+    if (!token) return;
 
     try {
       showToast('Unsubscribing...');
@@ -185,6 +246,7 @@ export default function App() {
   };
 
   const handleSummarize = async (emailId: string) => {
+    const token = getTokenForEmail(emailId);
     if (!token) return;
     setSummarizingIds(prev => ({ ...prev, [emailId]: true }));
     try {
@@ -207,7 +269,9 @@ export default function App() {
   };
 
   const handleSmartAction = async (actionType: string) => {
-    if (!token || !viewedEmail) return;
+    if (!viewedEmail) return;
+    const token = getTokenForEmail(viewedEmail.id);
+    if (!token) return;
     setIsPerformingSmartAction(actionType);
     setSmartActionResult(null);
     try {
@@ -242,7 +306,11 @@ export default function App() {
   };
 
   const handleBulkAction = async (action: 'trash' | 'mark-read' | 'mark-unread' | 'unsubscribe') => {
-    if (!token || selectedEmails.size === 0) return;
+    if (selectedEmails.size === 0) return;
+    // For bulk actions, we'll just use the token of the first selected email for simplicity
+    const firstSelectedId = Array.from(selectedEmails)[0] as string;
+    const token = getTokenForEmail(firstSelectedId);
+    if (!token) return;
     const messageIds = Array.from(selectedEmails);
     try {
       if (action === 'unsubscribe') {
@@ -310,6 +378,7 @@ export default function App() {
   };
 
   const handleSend = async () => {
+    const token = accounts[0]?.token;
     if (!token || !composeTo || !composeSubject || !composeBody) {
       showToast("Please fill in all fields.", "error");
       return;
@@ -361,8 +430,9 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900 font-sans">
         <div className="max-w-md w-full bg-gray-800 p-8 rounded-2xl shadow-lg border border-gray-700 text-center space-y-6">
-          <div className="mx-auto w-16 h-16 bg-blue-900/40 text-blue-400 rounded-full flex items-center justify-center mb-6 glow-blue">
-            <Sparkles className="w-8 h-8" />
+          <div className="mx-auto w-20 h-20 relative bg-gradient-to-br from-indigo-900/50 to-blue-900/20 rounded-2xl flex items-center justify-center mb-6 border border-indigo-500/20 shadow-[0_0_30px_-5px_rgba(79,70,229,0.3)]">
+            <Mail className="w-10 h-10 text-indigo-400" />
+            <Sparkles className="w-5 h-5 text-blue-400 absolute top-4 right-4 animate-pulse" />
           </div>
           <h1 className="text-2xl font-semibold text-white tracking-tight">AI Smart Inbox</h1>
           <p className="text-gray-400 pb-4 text-sm leading-relaxed">
@@ -413,8 +483,11 @@ export default function App() {
     <div className="flex h-screen bg-gray-900 text-gray-100 font-sans">
       <aside className="w-64 bg-gray-800 border-r border-gray-700 flex-col hidden md:flex">
         <div className="h-16 flex items-center px-6 border-b border-gray-700">
-          <Sparkles className="w-5 h-5 text-blue-400 mr-3" />
-          <span className="text-lg font-semibold tracking-tight text-white">Smart Mail</span>
+          <div className="relative mr-3">
+            <Mail className="w-6 h-6 text-indigo-400" />
+            <Sparkles className="w-3 h-3 text-blue-400 absolute -top-1 -right-1" />
+          </div>
+          <span className="text-lg font-semibold tracking-tight text-white">AI Inbox</span>
         </div>
         
         <div className="p-4">
@@ -468,7 +541,7 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center space-x-4 ml-4">
-            <button onClick={() => fetchEmails(token!)} className="text-gray-400 hover:text-white transition-colors" title="Refresh">
+            <button onClick={() => fetchEmails()} className="text-gray-400 hover:text-white transition-colors" title="Refresh">
               <Clock className="w-5 h-5" />
             </button>
             <Settings onClick={() => setIsSettingsOpen(true)} className="w-5 h-5 text-gray-400 cursor-pointer hover:text-white" />
@@ -560,26 +633,18 @@ export default function App() {
                                 <span className="text-[10px] uppercase tracking-wider font-semibold bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">
                                   {email.categoryName}
                                 </span>
-                            {email.importance === 'high' && (
-                              <span className="text-[10px] uppercase tracking-wider font-semibold bg-red-900/40 text-red-400 border border-red-800/50 px-1.5 py-0.5 rounded">
-                                High
-                              </span>
-                            )}
-                            {email.importance === 'medium' && (
-                              <span className="text-[10px] uppercase tracking-wider font-semibold bg-yellow-900/40 text-yellow-400 border border-yellow-800/50 px-1.5 py-0.5 rounded">
-                                Medium
-                              </span>
-                            )}
-                            {email.importance === 'low' && (
-                              <span className="text-[10px] uppercase tracking-wider font-semibold bg-green-900/40 text-green-400 border border-green-800/50 px-1.5 py-0.5 rounded">
-                                Low
-                              </span>
-                            )}
+
                           </div>
                           <span className="text-xs text-gray-500 sm:hidden">{email.date}</span>
                         </div>
                         <div className="flex items-center space-x-2 mt-0.5">
-                          <span className={`text-sm truncate ${!email.isRead ? 'font-semibold text-white' : 'text-gray-300'}`}>
+                          <span className={`text-sm truncate ${
+                            !isEmailRead 
+                              ? email.importance === 'high' ? 'font-semibold text-red-400' 
+                                : email.importance === 'medium' ? 'font-semibold text-yellow-400'
+                                : 'font-semibold text-white'
+                              : 'text-gray-400'
+                          }`}>
                             {email.subject}
                           </span>
                           {email.hasAttachments && (
@@ -717,39 +782,71 @@ export default function App() {
       {/* Settings Modal */}
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-700 flex items-center justify-between bg-gray-800/50">
+          <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-gray-700 flex items-center justify-between bg-gray-800/50 shrink-0">
               <h3 className="text-lg font-semibold text-white">Settings</h3>
               <button onClick={() => setIsSettingsOpen(false)} className="text-gray-400 hover:text-white transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-6">
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Gemini API Key
-                </label>
+            <div className="p-6 overflow-y-auto">
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-300">
+                    Gemini API Key
+                  </label>
+                  <a 
+                    href="https://aistudio.google.com/app/apikey" 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center"
+                  >
+                    Get API Key <Globe className="w-3 h-3 ml-1" />
+                  </a>
+                </div>
                 <input
                   type="password"
                   value={tempApiKey}
                   onChange={(e) => setTempApiKey(e.target.value)}
                   placeholder="Leave empty to use server default"
-                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm mb-2"
                 />
-                <p className="mt-2 text-xs text-gray-500">
+                <p className="text-xs text-gray-500 leading-relaxed">
                   Provide your own Gemini API key if you want to use a custom one. Otherwise, the app uses the built-in AI Studio key.
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setGeminiApiKey(tempApiKey);
-                  localStorage.setItem('gemini_api_key', tempApiKey);
-                  setIsSettingsOpen(false);
-                }}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5 font-medium transition-colors"
-              >
-                Save Changes
-              </button>
+              
+              <div className="mb-6 pt-6 border-t border-gray-700">
+                <h4 className="text-sm font-medium text-gray-300 mb-3">Accounts</h4>
+                <button
+                  onClick={() => {
+                    setIsSettingsOpen(false);
+                    handleLogin();
+                  }}
+                  className="w-full bg-gray-700 hover:bg-gray-600 text-white rounded-xl py-2.5 font-medium transition-colors flex items-center justify-center text-sm"
+                >
+                  <svg className="w-4 h-4 mr-2" viewBox="0 0 48 48">
+                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
+                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
+                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
+                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
+                  </svg>
+                  Add / Switch Google Account
+                </button>
+              </div>
+
+              <div className="pt-4 border-t border-gray-700">
+                <button
+                  onClick={() => {
+                    setGeminiApiKey(tempApiKey);
+                    localStorage.setItem('gemini_api_key', tempApiKey);
+                    setIsSettingsOpen(false);
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5 font-medium transition-colors shadow-sm"
+                >
+                  Save Changes
+                </button>
+              </div>
             </div>
           </div>
         </div>
