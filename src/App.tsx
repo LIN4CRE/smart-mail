@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
 import { 
   Inbox, Mail, Send, FileText, Trash2, Search, Menu, Bell, Settings, Star, Clock, Archive, Sparkles, Loader2, LogOut, CheckCircle2, AlertTriangle, X, Reply, Copy, Eye, EyeOff, ListTodo, Smile, Globe, PenTool, Paperclip
-} from 'lucide-react';
+, ShieldAlert, Zap, BookOpen, Users } from 'lucide-react';
 import { initAuth, googleSignIn, logout, getAccessToken } from './auth';
 import SmartAssistant from './components/SmartAssistant';
 
@@ -978,6 +978,36 @@ const [needsAuth, setNeedsAuth] = useState(true);
                 >
                   {isPerformingSmartAction === 'translate' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Globe className="w-3.5 h-3.5 mr-1.5" />} Translate
                 </button>
+
+                <button 
+                  onClick={() => handleSmartAction('phishing-check')} 
+                  disabled={isPerformingSmartAction === 'phishing-check'}
+                  className="bg-red-900/30 hover:bg-red-900/50 text-red-400 border border-red-800/50 px-3 py-1.5 rounded-lg font-medium text-xs transition-colors flex items-center disabled:opacity-50"
+                >
+                  {isPerformingSmartAction === 'phishing-check' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <ShieldAlert className="w-3.5 h-3.5 mr-1.5" />} Phishing Check
+                </button>
+                <button 
+                  onClick={() => handleSmartAction('tldr')} 
+                  disabled={isPerformingSmartAction === 'tldr'}
+                  className="bg-teal-900/30 hover:bg-teal-900/50 text-teal-400 border border-teal-800/50 px-3 py-1.5 rounded-lg font-medium text-xs transition-colors flex items-center disabled:opacity-50"
+                >
+                  {isPerformingSmartAction === 'tldr' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Zap className="w-3.5 h-3.5 mr-1.5" />} TL;DR
+                </button>
+                <button 
+                  onClick={() => handleSmartAction('eli5')} 
+                  disabled={isPerformingSmartAction === 'eli5'}
+                  className="bg-indigo-900/30 hover:bg-indigo-900/50 text-indigo-400 border border-indigo-800/50 px-3 py-1.5 rounded-lg font-medium text-xs transition-colors flex items-center disabled:opacity-50"
+                >
+                  {isPerformingSmartAction === 'eli5' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <BookOpen className="w-3.5 h-3.5 mr-1.5" />} ELI5
+                </button>
+                <button 
+                  onClick={() => handleSmartAction('entities')} 
+                  disabled={isPerformingSmartAction === 'entities'}
+                  className="bg-pink-900/30 hover:bg-pink-900/50 text-pink-400 border border-pink-800/50 px-3 py-1.5 rounded-lg font-medium text-xs transition-colors flex items-center disabled:opacity-50"
+                >
+                  {isPerformingSmartAction === 'entities' ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Users className="w-3.5 h-3.5 mr-1.5" />} Key Entities
+                </button>
+
               </div>
 
               {smartActionResult && (

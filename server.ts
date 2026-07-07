@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { google } from "googleapis";
-import { GoogleGenAI, Type, LiveServerMessage, Modality } from "@google/genai";
+import { GoogleGenAI, Type, ThinkingLevel, LiveServerMessage, Modality } from "@google/genai";
 import { WebSocketServer } from "ws";
 import http from "http";
 
@@ -375,7 +375,10 @@ async function startServer() {
         bodyText = Buffer.from(msgDetails.data.payload.body.data, "base64").toString("utf-8");
       }
 
-      let prompt = "";
+let prompt = "";
+      let model = "gemini-3.5-flash";
+      let config = {};
+
       if (actionType === "smart-reply") {
         prompt = `Draft a professional, concise reply to the following email:\n\n${bodyText}`;
       } else if (actionType === "extract-tasks") {
@@ -386,13 +389,27 @@ async function startServer() {
         prompt = `Analyze the tone and sentiment (e.g., positive, frustrated, urgent, formal) of this email:\n\n${bodyText}`;
       } else if (actionType === "translate") {
         prompt = `Translate the following email to English (if it's already in English, just return "Already in English"):\n\n${bodyText}`;
+      } else if (actionType === "phishing-check") {
+        prompt = `Analyze this email for signs of phishing, scams, or social engineering. Point out any suspicious links, urgency tactics, or requests for sensitive information. Be thorough.\n\n${bodyText}`;
+        model = "gemini-3.1-pro-preview";
+        config = { thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH } };
+      } else if (actionType === "eli5") {
+        prompt = `Explain the main point of this email simply, as if to a 5-year-old:\n\n${bodyText}`;
+        model = "gemini-3.1-flash-lite";
+      } else if (actionType === "tldr") {
+        prompt = `Provide a very short, 1-2 sentence TL;DR of this email:\n\n${bodyText}`;
+        model = "gemini-3.1-flash-lite";
+      } else if (actionType === "entities") {
+        prompt = `Extract a list of key people, organizations, dates, and locations mentioned in this email:\n\n${bodyText}`;
+        model = "gemini-3.1-flash-lite";
       } else {
         return res.status(400).json({ error: "Invalid action type" });
       }
 
       const genResponse = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: prompt
+        model,
+        contents: prompt,
+        ...(Object.keys(config).length > 0 && { config })
       });
 
       res.json({ result: genResponse.text });
