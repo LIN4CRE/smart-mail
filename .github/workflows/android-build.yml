@@ -1,12 +1,8 @@
 name: Build Android APK
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  # Manual-only: the committed gradle-wrapper.jar is corrupt, so auto-builds fail.
+  # Regenerate the wrapper (gradle wrapper) and re-enable push triggers to restore.
   workflow_dispatch:
 
 jobs:
