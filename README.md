@@ -1,3 +1,5 @@
+<p align="center"><img src="https://raw.githubusercontent.com/LIN4CRE/smart-mail/main/.github/banner.png" alt="smart-mail banner" width="100%"></p>
+
 <div align="center">
   <img src="public/icon.svg" width="120" alt="Smart Email Logo" />
   <h1>Smart Email Client</h1>
