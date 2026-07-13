@@ -4,13 +4,13 @@
   <p>A modern, clean, unified inbox experience powered by AI (Google Gemini).</p>
   
   <p>
-    <a href="https://ais-pre-z2zimnfxd3dutjguwxbocf-183479119885.europe-west2.run.app"><strong>🚀 View Live Demo</strong></a>
+    <a href="https://smart-mail-gamma.vercel.app"><strong>🚀 View Live Demo</strong></a>
   </p>
 
   <p>
-    <a href="https://github.com/your-username/smart-email/actions"><img src="https://github.com/your-username/smart-email/workflows/CI/badge.svg" alt="Build Status"></a>
+    <a href="https://smart-mail-gamma.vercel.app"><img src="https://img.shields.io/badge/demo-live-3ddc84" alt="Live Demo"></a>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
-    <img src="https://img.shields.io/github/v/release/your-username/smart-email" alt="Release">
+    <img src="https://img.shields.io/github/v/release/LIN4CRE/smart-mail" alt="Release">
   </p>
 </div>
 
@@ -25,7 +25,7 @@
 
 ## 🚀 Live Demo
 
-**[Experience the live application here](https://ais-pre-z2zimnfxd3dutjguwxbocf-183479119885.europe-west2.run.app)**
+**[Experience the live application here](https://smart-mail-gamma.vercel.app)**
 
 ## 🛠️ Tech Stack
 
@@ -46,7 +46,7 @@
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/smart-email.git
+   git clone https://github.com/LIN4CRE/smart-mail.git
    cd smart-email
    ```
 
