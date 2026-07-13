@@ -27,6 +27,17 @@
 
 **[Experience the live application here](https://smart-mail-gamma.vercel.app)**
 
+## 📸 Screenshots
+
+> _Add real screenshots here to finish the 95+ polish._ Save images to
+> `assets/` and reference them below — a shot of the **AI categorisation** in
+> action is the money screenshot.
+
+<!--
+![AI Smart Inbox — unified view](assets/screenshot-inbox.png)
+![AI categorisation](assets/screenshot-categories.png)
+-->
+
 ## 🛠️ Tech Stack
 
 - **Frontend**: React 19, TypeScript, Vite, Tailwind CSS, Lucide React
